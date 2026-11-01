@@ -26,6 +26,13 @@ export type Annotation =
 
 export type Mode = "select" | "text" | "arrow"
 
+// a label right of its mark starts there, one left of it ends there, and
+// one above or below it is centered on it
+const anchor = (m: Mark, dx: number) => {
+  const edge = m.r + (m.w ?? 0)
+  return dx > edge ? "start" : dx < -edge ? "end" : "middle"
+}
+
 const SVGNS = "http://www.w3.org/2000/svg"
 
 function el<K extends keyof SVGElementTagNameMap>(
@@ -161,7 +168,7 @@ export class AnnotationLayer {
         "stroke-width": 4,
         "stroke-linejoin": "round",
         "paint-order": "stroke",
-        "text-anchor": a.dx < -m.r - (m.w ?? 0) ? "end" : "start",
+        "text-anchor": anchor(m, a.dx),
       },
       g,
     )
@@ -302,7 +309,8 @@ export class AnnotationLayer {
     if (this.mode !== "select") return
     const [x, y] = this.pointer(e)
     const over =
-      (e.target as Element).closest(".ann") || this.markAt(x, y)?.label
+      (e.target as Element).closest(".ann, text[data-mark]") ||
+      this.markAt(x, y)?.label
     this.frame.svg.style.cursor = over ? "pointer" : ""
   }
 
@@ -323,6 +331,8 @@ export class AnnotationLayer {
     const target = (e.target as Element).closest(".ann")
     if (target)
       return this.dragAnnotation(e, Number(target.getAttribute("data-i")), x, y)
+    const own = (e.target as Element).closest("text[data-mark]")
+    if (own instanceof SVGTextElement) return this.dragChartLabel(e, own, x, y)
 
     const mark = this.markAt(x, y)
     if (mark?.label) {
@@ -393,6 +403,56 @@ export class AnnotationLayer {
         // a click: select it, so Delete removes it
         this.selected = this.selected === i ? undefined : i
         this.render()
+      },
+    )
+  }
+
+  // A drag on the chart's own label hides it and moves one of ours, put
+  // where the chart's was
+  private dragChartLabel(
+    e: PointerEvent,
+    text: SVGTextElement,
+    sx: number,
+    sy: number,
+  ) {
+    const key = text.getAttribute("data-mark")!
+    const m = this.marks.get(key)
+    if (!m?.label) return
+    // the chart's label is centered on x with its baseline at y
+    const ctm = text.getScreenCTM()!
+    const toFrame = (x: number, y: number) => {
+      const p = new DOMPoint(x, y).matrixTransform(ctm)
+      return this.pointer({ clientX: p.x, clientY: p.y })
+    }
+    const tx = text.x.baseVal[0].value
+    const half = text.getComputedTextLength() / 2
+    const [cx, base] = toFrame(tx, text.y.baseVal[0].value)
+    const [left] = toFrame(tx - half, 0)
+    const [right] = toFrame(tx + half, 0)
+    const edge = m.r + (m.w ?? 0)
+    const label: Extract<Annotation, { t: "label" }> = {
+      t: "label",
+      key,
+      dx:
+        left - m.x > edge
+          ? left - m.x
+          : right - m.x < -edge
+            ? right - m.x
+            : cx - m.x,
+      dy: base - m.y,
+    }
+    const start = { ...label }
+    this.drag(
+      e,
+      (x, y) => {
+        if (!this.anns.includes(label))
+          this.anns.push({ t: "hide", key }, label)
+        label.dx = start.dx + x - sx
+        label.dy = start.dy + y - sy
+        this.render()
+      },
+      moved => {
+        if (moved) this.commit()
       },
     )
   }
