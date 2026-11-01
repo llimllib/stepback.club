@@ -9,6 +9,7 @@
 // key, and notes are stored as the tool's data positions, so annotations
 // survive data refreshes and changes of export size
 import rough from "roughjs"
+import { halo } from "./halo"
 import { color, font, type } from "./theme"
 import type { Frame } from "./frame"
 import type { Mark } from "./tool"
@@ -164,15 +165,12 @@ export class AnnotationLayer {
         "font-size": m.labelSize ?? type.label.size,
         "font-weight": type.label.weight,
         fill: color.ink,
-        stroke: color.bg,
-        "stroke-width": 4,
-        "stroke-linejoin": "round",
-        "paint-order": "stroke",
         "text-anchor": anchor(m, a.dx),
       },
       g,
     )
     t.textContent = m.label
+    halo(t, 4)
     if (this.selected === i) this.outline(g)
   }
 
@@ -189,10 +187,6 @@ export class AnnotationLayer {
         "font-size": type.note.size,
         "font-weight": 600,
         fill: color.voice,
-        stroke: color.bg,
-        "stroke-width": 5,
-        "stroke-linejoin": "round",
-        "paint-order": "stroke",
       },
       g,
     )
@@ -200,6 +194,7 @@ export class AnnotationLayer {
       const s = el("tspan", { x: p[0], dy: j ? "0.95em" : "0.3em" }, t)
       s.textContent = line
     })
+    halo(t, 5)
     if (this.selected === i) this.outline(g)
   }
 

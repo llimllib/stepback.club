@@ -5,6 +5,7 @@
 // or an obstacle (a reference line, a note). Labels have a halo, so the dots
 // they do cross don't break the letters
 import { Delaunay, polygonArea, polygonCentroid, select } from "d3"
+import { halo } from "./halo"
 import { color } from "./theme"
 
 export interface LabelPoint {
@@ -158,18 +159,20 @@ export function placeLabels(
   for (const [i, b] of at) {
     const p = points[i]
     if (p.key !== undefined) labeled.add(p.key)
-    g.append("text")
-      .attr("data-mark", p.key ?? null)
-      .attr("x", (b.x0 + b.x1) / 2)
-      .attr("y", b.y1 - size * 0.18)
-      .attr("text-anchor", "middle")
-      .attr("font-size", size)
-      .attr("fill", color.ink)
-      .attr("stroke", color.bg)
-      .attr("stroke-width", 3.5)
-      .attr("stroke-linejoin", "round")
-      .attr("paint-order", "stroke")
-      .text(p.text)
+    // the halo copies data-mark too, so it hides with the label
+    halo(
+      g
+        .append("text")
+        .attr("data-mark", p.key ?? null)
+        .attr("x", (b.x0 + b.x1) / 2)
+        .attr("y", b.y1 - size * 0.18)
+        .attr("text-anchor", "middle")
+        .attr("font-size", size)
+        .attr("fill", color.ink)
+        .text(p.text)
+        .node()!,
+      3.5,
+    )
   }
   measure.remove()
   return labeled

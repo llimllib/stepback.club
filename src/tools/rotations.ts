@@ -16,6 +16,7 @@ import {
 } from "d3"
 import { lookups, read, readWhere, type Row as DataRow } from "../kit/data"
 import { agate } from "../kit/frame"
+import { halo } from "../kit/halo"
 import { color, type } from "../kit/theme"
 import type { Body, Mark, Tool } from "../kit/tool"
 
@@ -753,18 +754,19 @@ export const rotations: Tool<P, D> = {
         .attr("y1", base + 5)
         .attr("y2", base + 5)
         .attr("stroke", color.ink)
-      head
-        .append("text")
-        .attr("x", 0)
-        .attr("y", base)
-        .call(agate)
-        .attr("fill", color.ink)
-        .attr("font-weight", 600)
-        // the period lines run behind it
-        .attr("stroke", color.bg)
-        .attr("stroke-width", 4)
-        .attr("paint-order", "stroke")
-        .text(b.name)
+      // the period lines run behind it
+      halo(
+        head
+          .append("text")
+          .attr("x", 0)
+          .attr("y", base)
+          .call(agate)
+          .attr("fill", color.ink)
+          .attr("font-weight", 600)
+          .text(b.name)
+          .node()!,
+        4,
+      )
       for (const [i, label] of ["MIN", "+/−"].entries())
         head
           .append("text")
