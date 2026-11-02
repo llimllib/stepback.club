@@ -4,7 +4,7 @@
 # shellcheck disable=SC2029 # $dir and $cron are meant to expand locally
 set -euo pipefail
 
-server=root@billmill.org
+server=${SERVER:-root@billmill.org}
 dir=/root/nba-traffic
 cron="5 * * * * python3 $dir/traffic.py >> /tmp/nba-traffic.log 2>&1"
 
