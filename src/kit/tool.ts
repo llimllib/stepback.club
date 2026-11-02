@@ -33,6 +33,17 @@ export type Control =
       kind: "span"
       options: Option[]
     }
+  // pick several from a short list with a select, shown as chips: a
+  // comma-separated param. None picked is `none`
+  | {
+      key: string
+      label: string
+      kind: "multi"
+      options: Option[]
+      none: string
+      // at most this many
+      max: number
+    }
   // pick several from a long list by searching: a comma-separated param
   | {
       key: string

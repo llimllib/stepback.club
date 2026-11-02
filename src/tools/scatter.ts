@@ -386,7 +386,8 @@ interface Player {
   player_id: string
   season: number
   name: string
-  // their last team, whose colors they wear
+  // their last team, whose colors they wear unless a team they played for
+  // earlier is highlighted
   team: string
   // every team they played for, in order: more than one for a player
   // traded during the season. Only filled in when a team is highlighted
@@ -435,6 +436,9 @@ function teamColors(abbrev: string): [string, string] {
 }
 
 const pairOf = (id: string) => pairs[id] ?? pairs[defaults.pair]
+
+// the highlighted teams, from a comma-separated param
+const picked = (p: P) => p.team.split(",").filter(Boolean)
 
 // The shooting chart's two headline facts, for the front page's caption:
 // who uses the most of their team's offense, and who's most efficient among
@@ -633,7 +637,9 @@ export const scatter: Tool<P, D> = {
       from: d.from,
       to: d.to,
       kind: d.kind,
-      team: d.teams.has(p.team) ? p.team : "",
+      team: picked(p)
+        .filter(t => d.teams.has(t))
+        .join(","),
     }
   },
 
@@ -671,15 +677,14 @@ export const scatter: Tool<P, D> = {
         : []),
       {
         key: "team",
-        label: "Team",
-        kind: "select",
-        options: [
-          { value: "", label: "All teams" },
-          ...[...d.teams].map(([abbrev, name]) => ({
-            value: abbrev,
-            label: name,
-          })),
-        ],
+        label: "Teams",
+        kind: "multi",
+        none: "All teams",
+        max: 5,
+        options: [...d.teams].map(([abbrev, name]) => ({
+          value: abbrev,
+          label: name,
+        })),
       },
       {
         key: "top",
@@ -696,11 +701,12 @@ export const scatter: Tool<P, D> = {
     const pair = pairOf(d.pair)
     const [sx, sy] = [stats[pair.x], stats[pair.y]]
     const ps = shown(d, p)
-    const team = d.teams.get(p.team)
-    // a highlighted player who was traded wears another team's colors
-    const traded = ps.some(
-      pl => pl.teams.length > 1 && pl.teams.includes(p.team),
-    )
+    const sel = picked(p)
+    // one team's chart is about that team, and takes its name and colors
+    const team = sel.length === 1 ? d.teams.get(sel[0]) : undefined
+    // a team's dots include the players it traded, and those it traded for
+    const traded = (t: string) =>
+      ps.some(pl => pl.teams.length > 1 && pl.teams.includes(t))
     const one = d.from === d.to
     const games = max(d.players, pl => pl.gp) ?? 0
     const through =
@@ -733,16 +739,20 @@ export const scatter: Tool<P, D> = {
       title: team ?? pair.name,
       context: `${pair.deck} ${when}${through}. The top ${p.top}% of ${one ? "players" : "player-seasons"} by ${pair.volumeName}`,
       legend: [
-        {
-          symbol: "dot",
-          color: team ? teamColors(p.team)[0] : color.ink,
-          text: !team
-            ? "one player, in team colors"
-            : traded
-              ? `played for ${p.team}`
-              : `${p.team} player`,
-        },
-        ...(team
+        ...(sel.length
+          ? sel.map(t => ({
+              symbol: "dot" as const,
+              color: teamColors(t)[0],
+              text: traded(t) ? `played for ${t}` : `${t} player`,
+            }))
+          : [
+              {
+                symbol: "dot" as const,
+                color: color.ink,
+                text: "one player, in team colors",
+              },
+            ]),
+        ...(sel.length
           ? [
               {
                 symbol: "dot" as const,
@@ -757,7 +767,7 @@ export const scatter: Tool<P, D> = {
         ? `${games} games · ${ps.length} players`
         : `${d.to - d.from + 1} seasons · ${ps.length} player-seasons`,
       source: `Data: ${d.credit}`,
-      team: p.team || undefined,
+      team: team ? sel[0] : undefined,
     }
   },
 
@@ -787,18 +797,29 @@ export const scatter: Tool<P, D> = {
 
     // dots in team colors, or a team's players over a faded league. The color
     // is identity, not value: names and position carry the reading
-    const mine = (pl: Player) => !p.team || pl.teams.includes(p.team)
+    const sel = picked(p)
+    const mine = (pl: Player) =>
+      !sel.length || pl.teams.some(t => sel.includes(t))
+    // a highlighted player wears the colors of the last highlighted team
+    // they played for, so a dot matches its team's in the legend
+    const hue = (pl: Player) =>
+      teamColors(pl.teams.findLast(t => sel.includes(t)) ?? pl.team)
     // a traded player's name says so, as their numbers include their time
-    // with other teams
+    // with other teams. With several teams highlighted, every name says
+    // which, so a dot's team doesn't rest on its color
     // over a span of seasons, a name says which season
     const named = (pl: Player) =>
       (d.from === d.to
         ? pl.name
         : `${pl.name} ’${String(pl.season).slice(2)}`) +
-      (pl.teams.length > 1 ? ` (${pl.teams.join("→")})` : "")
+      (pl.teams.length > 1
+        ? ` (${pl.teams.join("→")})`
+        : sel.length > 1 && mine(pl)
+          ? ` (${pl.team})`
+          : "")
     // behind a team, the rest of the league is smaller, so the team's dots
     // and names stand out by size as well as color
-    const rOf = (pl: Player) => (mine(pl) || !p.team ? r : 3.5)
+    const rOf = (pl: Player) => (mine(pl) || !sel.length ? r : 3.5)
     const order = [...ps].sort((a, b) => Number(mine(a)) - Number(mine(b)))
     for (const pl of order) {
       plot
@@ -806,9 +827,9 @@ export const scatter: Tool<P, D> = {
         .attr("cx", x(pl.x))
         .attr("cy", y(pl.y))
         .attr("r", rOf(pl))
-        .attr("fill", mine(pl) ? teamColors(pl.team)[0] : color.faint)
-        .attr("fill-opacity", mine(pl) ? 1 : p.team ? 0.35 : 0.45)
-        .attr("stroke", mine(pl) ? teamColors(pl.team)[1] : color.bg)
+        .attr("fill", mine(pl) ? hue(pl)[0] : color.faint)
+        .attr("fill-opacity", mine(pl) ? 1 : sel.length ? 0.35 : 0.45)
+        .attr("stroke", mine(pl) ? hue(pl)[1] : color.bg)
         .attr("stroke-width", mine(pl) ? 1.5 : 0.75)
         .append("title")
         .text(
@@ -819,10 +840,10 @@ export const scatter: Tool<P, D> = {
     // names: the players with the most volume first, and all of a
     // highlighted team's. A click on a dot toggles its name
     // a team's few names can be bigger
-    const labelSize = p.team ? 14 : 12.5
+    const labelSize = sel.length ? 14 : 12.5
     // a team's few players are all named, overlapping if they must; a team
     // over many seasons is named where there's room
-    const few = Boolean(p.team) && ps.filter(mine).length <= 20
+    const few = sel.length > 0 && ps.filter(mine).length <= 20
     const labeled = placeLabels(
       plot.append("g").attr("font-weight", type.label.weight).node()!,
       ps
@@ -835,7 +856,7 @@ export const scatter: Tool<P, D> = {
           always: few && mine(pl),
           key: pl.key,
         }))
-        .filter((_, i) => !p.team || mine(ps[i])),
+        .filter((_, i) => !sel.length || mine(ps[i])),
       { width: plotW, height: plotH },
       {
         size: labelSize,

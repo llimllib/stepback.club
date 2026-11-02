@@ -1,6 +1,7 @@
 // The question controls, as native elements where there's one that fits:
-// select, range (and steps, a range over a list) and checkbox. Two have none and are built here: a two-handle
-// slider over a span of values, and a search box that picks several players
+// select, range (and steps, a range over a list) and checkbox. Three have none and are built here: a two-handle
+// slider over a span of values, a select that picks several, and a search
+// box that picks several players
 import type { Params } from "./state"
 import type { Control, Option } from "./tool"
 
@@ -9,6 +10,7 @@ type Set = (patch: Params) => void
 export function controlElement(c: Control, p: Params, set: Set): HTMLElement {
   if (c.kind === "span") return span(c, p, set)
   if (c.kind === "players") return players(c, p, set)
+  if (c.kind === "multi") return multi(c, p, set)
 
   const label = document.createElement("label")
   const name = document.createElement("span")
@@ -142,6 +144,58 @@ function span(
   }
   show()
   div.append(out, track)
+  return div
+}
+
+// the picks in a comma-separated param
+const picks = (v: unknown) =>
+  String(v || "")
+    .split(",")
+    .filter(Boolean)
+
+// A select that adds its choice to the picks, shown as chips under it. Its
+// first option says what's picked: `none`, or how many
+function multi(
+  c: Extract<Control, { kind: "multi" }>,
+  p: Params,
+  set: Set,
+): HTMLElement {
+  const div = field(c.label)
+  div.classList.add("multi")
+  const picked = picks(p[c.key])
+  const write = (vs: string[]) => set({ [c.key]: vs.join(",") })
+
+  const select = document.createElement("select")
+  select.setAttribute("aria-label", `Add to ${c.label.toLowerCase()}`)
+  const full = picked.length >= c.max
+  select.add(
+    new Option(
+      !picked.length ? c.none : full ? `${c.max} at most` : `Add another…`,
+      "",
+    ),
+  )
+  for (const o of c.options)
+    if (!picked.includes(String(o.value)))
+      select.add(new Option(o.label, String(o.value)))
+  select.disabled = full
+  select.addEventListener("change", () => {
+    if (select.value) write([...picked, select.value])
+  })
+
+  const byValue = new Map(c.options.map(o => [String(o.value), o]))
+  const chips = document.createElement("div")
+  chips.className = "chips"
+  for (const v of picked) {
+    const chip = document.createElement("button")
+    chip.type = "button"
+    chip.className = "chip"
+    chip.title = "Remove"
+    chip.textContent = `${byValue.get(v)?.label ?? v} ×`
+    chip.addEventListener("click", () => write(picked.filter(x => x !== v)))
+    chips.append(chip)
+  }
+
+  div.append(select, chips)
   return div
 }
 

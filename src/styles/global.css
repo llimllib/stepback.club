@@ -186,7 +186,7 @@ h1 {
 }
 
 .tool label > :is(select, input),
-.tool .field > :is(.dual, .search, .chips, .fallback-note),
+.tool .field > :is(select, .dual, .search, .chips, .fallback-note),
 .tool legend {
   grid-column: 1 / -1;
 }
