@@ -44,7 +44,8 @@ or the frame.
 
 A push to `main` deploys: `.github/workflows/publish.yml` builds and syncs
 `dist/` to the `nba-data` DigitalOcean Space with `--delete`, then purges
-DO's CDN. billmill.org/nba is Cloudflare → Caddy → that Space; Caddy
+DO's CDN. billmill.org/nba is Caddy on the billmill.org droplet → the
+Space's CDN, which DigitalOcean serves through Cloudflare; Caddy
 (`~/code/Newsite/ops/Caddyfile`) strips `/nba` and maps `/x` to `x.html`.
 There's no scheduled rebuild: data is read at run time, so a build is only
 needed when the code changes.
