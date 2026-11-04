@@ -92,7 +92,8 @@ export const teams: Map<string, Team> = new Map([
     "DAL",
     {
       abbreviation: "DAL",
-      colors: ["#0064B1", "#00285E", "#BBC4CA", "#000000"],
+      // navy first: the royal blue is Orlando's, and their dots matched
+      colors: ["#00285E", "#BBC4CA", "#0064B1", "#000000"],
       ctgName: "Dallas",
       name: "Dallas Mavericks",
     },
