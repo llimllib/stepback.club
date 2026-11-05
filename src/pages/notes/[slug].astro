@@ -1,0 +1,40 @@
+---
+import { getCollection, render } from "astro:content"
+import Base from "../../layouts/Base.astro"
+
+export async function getStaticPaths() {
+  const notes = await getCollection("notes")
+  return notes.map(note => ({ params: { slug: note.id }, props: { note } }))
+}
+
+const { note } = Astro.props
+const { Content } = await render(note)
+const { title, deck, date, chart } = note.data
+const dateline = date.toLocaleDateString("en-US", {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+})
+---
+
+<Base title={title} description={deck}>
+  <article class="note-page">
+    <time datetime={date.toISOString().slice(0, 10)}>{dateline}</time>
+    <h1>{title}</h1>
+    <p class="lede">{deck}</p>
+    {chart && <figure class="note-chart" data-chart={chart}></figure>}
+    <div class="note-body"><Content /></div>
+  </article>
+</Base>
+
+<script>
+  import { embed } from "../../kit/mount"
+  import { sketches, type SketchName } from "../../sketches"
+
+  for (const el of document.querySelectorAll<HTMLElement>(".note-chart")) {
+    const load = sketches[el.dataset.chart as SketchName]
+    if (load) load().then(tool => embed(el, tool))
+  }
+</script>

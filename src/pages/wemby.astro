@@ -1,0 +1,19 @@
+---
+import Base from "../layouts/Base.astro"
+const base = import.meta.env.BASE_URL.replace(/\/?$/, "/")
+---
+
+<Base title="Wembanyama vs. Dallas" description="The chart from the note on Wembanyama's game against Dallas, to annotate and export">
+  <h1>Wembanyama vs. Dallas</h1>
+  <p class="lede">
+    The chart from <a href={`${base}notes/2026-11-05-wembanyama`}>the note</a>,
+    to annotate and export.
+  </p>
+  <div id="tool"></div>
+</Base>
+
+<script>
+  import { mount } from "../kit/mount"
+  import { wemby } from "../sketches/wemby"
+  mount(document.getElementById("tool")!, wemby)
+</script>

@@ -1070,3 +1070,95 @@ time {
     border-left: 0;
   }
 }
+
+/* --- a note: a serif column of about 65 characters, with its chart wider,
+   like a photo */
+
+.index time {
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.note-page {
+  max-width: 720px;
+}
+
+.note-page > time {
+  display: block;
+  margin-bottom: 0.4rem;
+}
+
+.note-chart {
+  margin: 0 0 1.5rem;
+}
+
+/* hold the chart's space while it loads */
+.note-chart .chart-placeholder[data-state="loading"] {
+  aspect-ratio: 720 / 790;
+}
+
+.note-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.note-body {
+  max-width: 36rem;
+}
+
+.note-body h2 {
+  margin: 2rem 0 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 3px solid var(--ink);
+  font-size: 1.6rem;
+}
+
+.note-body table {
+  margin: 1.25rem 0;
+  border-collapse: collapse;
+  border-top: var(--rule);
+  border-bottom: var(--rule);
+  font-variant-numeric: tabular-nums;
+}
+
+.note-body th {
+  font-family: var(--agate);
+  font-size: 0.72rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: var(--rule);
+}
+
+.note-body :is(th, td) {
+  padding: 0.3rem 0.9rem 0.3rem 0;
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* a row's name can wrap; its numbers can't */
+.note-body td:first-child {
+  white-space: normal;
+}
+
+.note-body tr + tr td {
+  border-top: 1px solid #dcd7ca;
+}
+
+/* a wide table scrolls on a phone, rather than squeezing */
+@media (max-width: 719px) {
+  .note-body table {
+    display: block;
+    overflow-x: auto;
+  }
+}
+
+.frozen {
+  font-family: var(--agate);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}

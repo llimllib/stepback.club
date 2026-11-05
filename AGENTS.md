@@ -71,6 +71,9 @@ shared code was in `docs/lib/`. Don't restore it into the tree.
   - `theme.ts`: colors, type scale, fonts
 - `src/tools/`: one module per tool
 - `src/scores/`: the scores page, which is plain HTML, not a tool
+- `src/notes/`: notes, as Markdown with their frozen data beside them;
+  `src/sketches/`: the one-off charts they embed. See
+  `docs/plans/2026-11-05-notes-design.md`
 - `src/pages/`: one page per tool, plus Now / Tools / Notes
 - `docs/plans/`: design docs, dated; the newest decision wins
 - `transcripts/`: AI coding session transcripts from the old site
@@ -91,7 +94,8 @@ shared code was in `docs/lib/`. Don't restore it into the tree.
   Okabe-Ito, Paul Tol), not picked by hand
 - Zero is the strongest line on a signed axis
 - Data comes only from the published bucket, read at run time through
-  `kit/data.ts`: no data loaders, no build-time pulls, no local copies
+  `kit/data.ts`: no data loaders, no build-time pulls, no local copies.
+  The exception is a note, which freezes its data on purpose
 - Data reference: `~/code/nba_data/docs/DATA_DICTIONARY.md`
 
 ## Known issues

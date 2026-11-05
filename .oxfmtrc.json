@@ -8,6 +8,7 @@
     ".astro/",
     "shots/",
     "transcripts/",
-    "package-lock.json"
+    "package-lock.json",
+    "src/notes/*.json"
   ]
 }
