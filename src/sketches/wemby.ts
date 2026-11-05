@@ -82,7 +82,7 @@ export const wemby: Tool<P, D> = {
   describe(d) {
     const s = d.star
     return {
-      title: "Both ends at once",
+      title: "An outlier",
       context: `Victor Wembanyama's ${s.pts} points, 24 rebounds and 8 blocks against Dallas on ${fmtDate(s.date)}, in ESPN's net points, against every game since 2018–19`,
       legend: [
         { symbol: "bar", color: color.faint, text: "games, darker where more" },
