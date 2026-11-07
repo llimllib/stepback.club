@@ -17,8 +17,9 @@ import { gutterWidth, lineLabels, lineStyle } from "../kit/lines"
 import { color, type } from "../kit/theme"
 import type { Body, Mark, Tool } from "../kit/tool"
 
-// 0 is the latest season the data has; load resolves them. Empty players
-// means the five highest rated on the span's last day
+// 0 is the latest season the data has for `to`, and SEASONS seasons
+// ending there for `from`; load resolves them. Empty players means the five
+// highest rated on the span's last day
 const defaults = {
   from: 0,
   to: 0,
@@ -46,6 +47,8 @@ const ratings: Record<string, { label: string; name: string; phrase: string }> =
 
 const MAX_PLAYERS = 12
 const LEADERS = 5
+// a rating moves slowly, so the default span is long enough to see it move
+const SEASONS = 5
 // a player missing more of a season's game days than this breaks his line:
 // an injury, off every roster
 const GAP_DAYS = 10
@@ -242,7 +245,7 @@ export const rapm: Tool<P, D> = {
     const clamp = (s: number) =>
       Math.min(last_season, Math.max(first_season, s))
     const to = clamp(p.to || last_season)
-    const from = clamp(p.from || to)
+    const from = clamp(p.from || to - SEASONS + 1)
     const [lo, hi] = from <= to ? [from, to] : [to, from]
     const rating = p.rating in ratings ? p.rating : defaults.rating
 

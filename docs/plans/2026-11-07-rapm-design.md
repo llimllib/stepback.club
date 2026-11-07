@@ -19,7 +19,8 @@ than filtering row groups by player. Names come from `player_seasons`.
 
 ## Controls
 
-- **Seasons**: the span slider, defaulting to the latest season.
+- **Seasons**: the span slider, defaulting to the last five seasons: a
+  rating moves slowly, so one season is mostly straight lines.
 - **Rating**: total, offense or defense; one line per player.
 - **Players**: search with chips, at most 12. Empty means the five highest
   rated on the last day in the span: today's best for the current season,
