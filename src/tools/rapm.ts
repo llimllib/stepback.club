@@ -1,10 +1,10 @@
 // RAPM over time: what yarapm's model thought of a few players on each game
 // day, from the games before it. See docs/plans/2026-11-07-rapm-design.md
 import {
+  bisectLeft,
   format,
   line,
   max,
-  min,
   precisionFixed,
   scaleLinear,
   scaleUtc,
@@ -46,14 +46,15 @@ const ratings: Record<string, { label: string; name: string; phrase: string }> =
 
 const MAX_PLAYERS = 12
 const LEADERS = 5
-// days of a season further apart than this break a line: an injury, a
-// player off every roster. The All-Star break is about a week
+// a player missing more of a season's game days than this breaks his line:
+// an injury, off every roster
 const GAP_DAYS = 10
-const DAY = 86_400_000
 
 interface Day {
   season: number
   date: Date
+  // which of the span's game days it is
+  n: number
   v: number
   // offensive possessions this season before the day
   poss: number
@@ -67,16 +68,16 @@ interface D {
   names: Map<string, string>
   // each player's days in the span, in date order
   days: Map<string, Day[]>
-  // each season's first and last days, in order
-  extents: Extent[]
+  // the span's game days, in order: every day with ratings, which is
+  // every day the league played, plus the latest build's
+  league: LeagueDay[]
   // the span's last day
   last: Date
 }
 
-interface Extent {
+interface LeagueDay {
   season: number
-  first: Date
-  last: Date
+  date: Date
 }
 
 const fmtSeason = (s: number) => `${s - 1}–${String(s).slice(2)}`
@@ -89,43 +90,41 @@ const fmtDate = (d: Date, year = false) =>
   })
 const isoDate = (d: Date) => d.toISOString().slice(0, 10)
 
-// An x scale for dates that leaves out the offseasons: each season is a band
-// as wide as its days, the bands `pad` apart
-function seasonScale(extents: Extent[], width: number, pad: number) {
-  // a season of one day still gets a sliver
-  const len = (e: Extent) => Math.max(DAY, +e.last - +e.first)
-  const k =
-    (width - pad * (extents.length - 1)) /
-    extents.reduce((t, e) => t + len(e), 0)
-  const starts: number[] = []
-  let at = 0
-  for (const e of extents) {
-    starts.push(at)
-    at += len(e) * k + pad
-  }
-  // a date's season is the last one starting by it
-  const which = (t: number) =>
-    Math.max(
-      0,
-      extents.findLastIndex(e => +e.first <= t),
+// An x scale over the span's game days, a step each, whatever the calendar
+// did between them: the offseasons, the All-Star break and 2020's suspension
+// take no room. Seasons are `pad` apart
+function dayScale(league: LeagueDay[], width: number, pad: number) {
+  const breaks = league.filter(
+    (l, i) => i && l.season !== league[i - 1].season,
+  ).length
+  const k = (width - pad * breaks) / Math.max(1, league.length - 1)
+  const pos: number[] = []
+  league.forEach((l, i) =>
+    pos.push(
+      i ? pos[i - 1] + k + (l.season === league[i - 1].season ? 0 : pad) : 0,
+    ),
+  )
+  const times = league.map(l => +l.date)
+  // a date's place is its game day's, or the next one's
+  const x = (d: Date) =>
+    pos[Math.min(pos.length - 1, bisectLeft(times, +d))] ?? 0
+  // the n'th game day's place
+  x.at = (n: number) => pos[n]
+  x.invert = (px: number) =>
+    league[Math.min(league.length - 1, bisectLeft(pos, px))]?.date
+  // each season's game days, from the first's place to the last's
+  x.bands = () =>
+    league.flatMap((l, i) =>
+      i && l.season === league[i - 1].season
+        ? []
+        : [
+            {
+              season: l.season,
+              a: pos[i],
+              b: pos[league.findLastIndex(m => m.season === l.season)],
+            },
+          ],
     )
-  const x = (d: Date) => {
-    const i = which(+d)
-    const e = extents[i]
-    return starts[i] + Math.min(len(e), Math.max(0, +d - +e.first)) * k
-  }
-  // each season's band, [start, end] in pixels
-  x.band = (i: number) => [starts[i], starts[i] + len(extents[i]) * k]
-  x.invert = (px: number) => {
-    const i = Math.max(
-      0,
-      starts.findLastIndex(st => st <= px),
-    )
-    const e = extents[i]
-    return new Date(
-      +e.first + Math.min(len(e), Math.max(0, (px - starts[i]) / k)),
-    )
-  }
   return x
 }
 
@@ -189,8 +188,7 @@ function smooth(days: Day[], sigma: number) {
 // how wide the trend's smoothing is, in a player's days: a week or so in a
 // season, about six weeks over a career
 function smoothing(d: D) {
-  const days = d.extents.reduce((t, e) => t + (+e.last - +e.first) / DAY, 0)
-  return Math.min(20, Math.max(2, days / 60))
+  return Math.min(20, Math.max(2, d.league.length / 50))
 }
 
 interface Point {
@@ -198,9 +196,9 @@ interface Point {
   trend: number
 }
 
-// each shown player's days with their trend, split into runs where a season
-// has a gap. The offseasons are left out of the chart, so a run goes on
-// into the next season
+// each shown player's days with their trend, split into runs where he
+// missed part of a season. The offseasons take no room on the chart, so a
+// run goes on into the next season
 function series(d: D, p: P) {
   return shown(d, p).map((id, i) => {
     const days = d.days.get(id) ?? []
@@ -208,10 +206,7 @@ function series(d: D, p: P) {
     const runs: Point[][] = []
     days.forEach((day, j) => {
       const prev = days[j - 1]
-      if (
-        !prev ||
-        (prev.season === day.season && +day.date - +prev.date > GAP_DAYS * DAY)
-      )
+      if (!prev || (prev.season === day.season && day.n - prev.n > GAP_DAYS))
         runs.push([])
       runs.at(-1)!.push({ day, trend: trend[j] })
     })
@@ -269,24 +264,31 @@ export const rapm: Tool<P, D> = {
 
     const names = new Map<string, string>()
     const days = new Map<string, Day[]>()
-    const extents: Extent[] = []
+    const league: LeagueDay[] = []
     seasons.forEach(([rows, players], i) => {
       for (const pl of players) names.set(pl.player_id, pl.name)
-      const dates = rows.map(r => r.as_of_date as Date)
-      const [first, last] = [min(dates), max(dates)]
-      if (first && last) extents.push({ season: span[i], first, last })
+      const dates = new Map(
+        rows.map(r => [+r.as_of_date, r.as_of_date as Date]),
+      )
+      for (const date of [...dates.values()].sort((a, b) => +a - +b))
+        league.push({ season: span[i], date })
       for (const r of rows) {
         let list = days.get(r.player_id)
         if (!list) days.set(r.player_id, (list = []))
         list.push({
           season: span[i],
           date: r.as_of_date,
+          n: 0,
           v: Number(r[rating]),
           poss: Number(r.possessions ?? 0),
         })
       }
     })
-    for (const list of days.values()) list.sort((a, b) => +a.date - +b.date)
+    const n = new Map(league.map((l, i) => [+l.date, i]))
+    for (const list of days.values()) {
+      for (const day of list) day.n = n.get(+day.date)!
+      list.sort((a, b) => a.n - b.n)
+    }
 
     const all = []
     for (let s = first_season; s <= last_season; s++) all.push(s)
@@ -297,8 +299,8 @@ export const rapm: Tool<P, D> = {
       rating,
       names,
       days,
-      extents,
-      last: extents.at(-1)?.last ?? new Date(),
+      league,
+      last: league.at(-1)?.date ?? new Date(),
     }
   },
 
@@ -428,7 +430,7 @@ export const rapm: Tool<P, D> = {
     const plotW = size.width - left - gutter
     const height = size.height ?? Math.round(plotW * 0.62) + top + bottom
     const plotH = height - top - bottom
-    const x = seasonScale(d.extents, plotW, oneSeason ? 0 : 8)
+    const x = dayScale(d.league, plotW, oneSeason ? 0 : 8)
     y.range([plotH, 0])
     const plot = g.append("g").attr("transform", `translate(${left},${top})`)
 
@@ -441,13 +443,21 @@ export const rapm: Tool<P, D> = {
       .attr("font-weight", type.tick.weight)
       .attr("fill", color.muted)
     if (oneSeason) {
-      const e = d.extents[0]
-      const dates = e ? scaleUtc().domain([e.first, e.last]).ticks(8) : []
+      // the calendar's ticks, each at its game day or the next one; a month
+      // is named at its first game day. A tick with no game day near it
+      // (2020's suspension) or too near the last one is left out
+      const [first, last] = [d.league[0]?.date, d.last]
+      const dates = first ? scaleUtc().domain([first, last]).ticks(8) : []
+      let prev = -Infinity
       for (const t of dates) {
-        grid.append("line").attr("x1", x(t)).attr("x2", x(t)).attr("y2", plotH)
+        const at = x(t)
+        const day = x.invert(at)
+        if (!day || +day - +t > 3 * 86_400_000 || at - prev < 48) continue
+        prev = at
+        grid.append("line").attr("x1", at).attr("x2", at).attr("y2", plotH)
         axis
           .append("text")
-          .attr("x", x(t))
+          .attr("x", at)
           .attr("y", plotH + 18)
           .attr("text-anchor", "middle")
           .text(
@@ -456,17 +466,14 @@ export const rapm: Tool<P, D> = {
                   month: "short",
                   timeZone: "UTC",
                 })
-              : fmtDate(t),
+              : fmtDate(day),
           )
       }
     } else {
       // "2022–23" if every band fits it, "’23" if not
-      const short = d.extents.some((_, i) => {
-        const [a, b] = x.band(i)
-        return b - a < 64
-      })
-      d.extents.forEach((e, i) => {
-        const [a, b] = x.band(i)
+      const bands = x.bands()
+      const short = bands.some(({ a, b }) => b - a < 64)
+      bands.forEach(({ season, a, b }, i) => {
         if (i)
           grid
             .append("line")
@@ -478,7 +485,7 @@ export const rapm: Tool<P, D> = {
           .attr("x", (a + b) / 2)
           .attr("y", plotH + 18)
           .attr("text-anchor", "middle")
-          .text(short ? `’${String(e.season).slice(2)}` : fmtSeason(e.season))
+          .text(short ? `’${String(season).slice(2)}` : fmtSeason(season))
       })
     }
     // y grid, then zero, the strongest line
@@ -510,7 +517,7 @@ export const rapm: Tool<P, D> = {
       for (const pt of ss[0].points)
         plot
           .append("circle")
-          .attr("cx", x(pt.day.date))
+          .attr("cx", x.at(pt.day.n))
           .attr("cy", y(pt.day.v))
           .attr("r", 1.75)
           .attr("fill", ss[0].color)
@@ -518,7 +525,7 @@ export const rapm: Tool<P, D> = {
 
     // the trends, the last-picked underneath. A run of one day is a dot
     const path = line<Point>()
-      .x(pt => x(pt.day.date))
+      .x(pt => x.at(pt.day.n))
       .y(pt => y(pt.trend))
     for (const s of ss.toReversed())
       for (const run of s.runs)
@@ -534,7 +541,7 @@ export const rapm: Tool<P, D> = {
         else
           plot
             .append("circle")
-            .attr("cx", x(run[0].day.date))
+            .attr("cx", x.at(run[0].day.n))
             .attr("cy", y(run[0].trend))
             .attr("r", 2.5)
             .attr("fill", s.color)
@@ -544,7 +551,7 @@ export const rapm: Tool<P, D> = {
       ss.flatMap((s, i) => {
         const e = ends[i]
         if (!e) return []
-        return [{ ...s, sub: e.sub, x: x(e.end.day.date), y: y(e.end.trend) }]
+        return [{ ...s, sub: e.sub, x: x.at(e.end.day.n), y: y(e.end.trend) }]
       }),
       plotW,
       plotH,
@@ -558,7 +565,7 @@ export const rapm: Tool<P, D> = {
       for (const { day, trend } of s.points)
         marks.push({
           key: `${s.id}:${isoDate(day.date)}`,
-          x: x(day.date) + left,
+          x: x.at(day.n) + left,
           y: y(dots ? day.v : trend) + top,
           r: 3,
           label: `${fmtDate(day.date, true)} · ${fmt(day.v)} · ${poss(day.poss)} poss`,
@@ -580,7 +587,9 @@ export const rapm: Tool<P, D> = {
       invert(px, py) {
         const [u, v] = [px - left, py - top]
         if (u < 0 || u > plotW || v < 0 || v > plotH) return undefined
-        return { d: isoDate(x.invert(u)), v: +y.invert(v).toFixed(3) }
+        const day = x.invert(u)
+        if (!day) return undefined
+        return { d: isoDate(day), v: +y.invert(v).toFixed(3) }
       },
       project(pos) {
         const { d: day, v } = pos as { d: string; v: number }

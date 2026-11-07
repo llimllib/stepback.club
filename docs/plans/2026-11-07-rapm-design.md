@@ -29,10 +29,14 @@ The box-score prior is left out for now.
 
 ## Drawing
 
-- x is the date, with the offseasons left out: each season is a band as
-  wide as its days, with a rule between them. Date ticks for one
-  season, season names under the bands for a span. Within a season it's
-  real time, so an injury is still a gap.
+- x steps through the league's game days, one step each, whatever the
+  calendar did between them: offseasons, the All-Star break and 2020's
+  suspension take no room, since no one's rating moves without games,
+  while an injury still shows, as the league played on without the
+  player. It's monotonic and the same for every player, which is all it
+  needs to be. A rule between seasons; month and date ticks for one
+  season (at the first game day on or after them), season names under
+  their bands for a span.
 - y is points per 100 possessions, signed, with zero the strongest line.
 - After Dunks & Threes' EPM chart: one player's days are faint dots under
   a trend line; two or more players get only their trends, as five dot
@@ -43,7 +47,8 @@ The box-score prior is left out for now.
   unlike the days; the value beside a name is the last day's, not the
   trend's.
 - The trend runs on across the rule between seasons, and breaks where a
-  season's days are more than 10 apart (an injury, off a roster); a run
+  player misses more than 10 of a season's game days (an injury, off a
+  roster); a run
   of one day is a dot.
 - Lines, colors, and names in the gutter as in cumulative.
 - Every day is a mark (`<player>:<date>`), at its dot or on the trend, labeled "Jan 5, 2026 · +6.2 ·
