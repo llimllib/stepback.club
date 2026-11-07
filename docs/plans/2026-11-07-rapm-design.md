@@ -29,8 +29,10 @@ The box-score prior is left out for now.
 
 ## Drawing
 
-- x is the date: month ticks for one season, season ticks for a span.
-  Offseasons are empty space.
+- x is the date, with the offseasons left out: each season is a band as
+  wide as its days, with a rule between them. Date ticks for one
+  season, season names under the bands for a span. Within a season it's
+  real time, so an injury is still a gap.
 - y is points per 100 possessions, signed, with zero the strongest line.
 - A line breaks where a player's days are more than 10 apart (offseason,
   injury, off a roster); a run of one day is a dot.

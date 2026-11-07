@@ -66,7 +66,14 @@ interface D {
   names: Map<string, string>
   // each player's days in the span, in date order
   days: Map<string, Day[]>
-  // the span's first and last days
+  // each season's first and last days, in order
+  extents: Extent[]
+  // the span's last day
+  last: Date
+}
+
+interface Extent {
+  season: number
   first: Date
   last: Date
 }
@@ -80,6 +87,46 @@ const fmtDate = (d: Date, year = false) =>
     timeZone: "UTC",
   })
 const isoDate = (d: Date) => d.toISOString().slice(0, 10)
+
+// An x scale for dates that leaves out the offseasons: each season is a band
+// as wide as its days, the bands `pad` apart
+function seasonScale(extents: Extent[], width: number, pad: number) {
+  // a season of one day still gets a sliver
+  const len = (e: Extent) => Math.max(DAY, +e.last - +e.first)
+  const k =
+    (width - pad * (extents.length - 1)) /
+    extents.reduce((t, e) => t + len(e), 0)
+  const starts: number[] = []
+  let at = 0
+  for (const e of extents) {
+    starts.push(at)
+    at += len(e) * k + pad
+  }
+  // a date's season is the last one starting by it
+  const which = (t: number) =>
+    Math.max(
+      0,
+      extents.findLastIndex(e => +e.first <= t),
+    )
+  const x = (d: Date) => {
+    const i = which(+d)
+    const e = extents[i]
+    return starts[i] + Math.min(len(e), Math.max(0, +d - +e.first)) * k
+  }
+  // each season's band, [start, end] in pixels
+  x.band = (i: number) => [starts[i], starts[i] + len(extents[i]) * k]
+  x.invert = (px: number) => {
+    const i = Math.max(
+      0,
+      starts.findLastIndex(st => st <= px),
+    )
+    const e = extents[i]
+    return new Date(
+      +e.first + Math.min(len(e), Math.max(0, (px - starts[i]) / k)),
+    )
+  }
+  return x
+}
 
 // a rating, always signed; ticks pass their own precision
 function signed(digits = 1) {
@@ -155,7 +202,7 @@ export const rapm: Tool<P, D> = {
     const [lo, hi] = from <= to ? [from, to] : [to, from]
     const rating = p.rating in ratings ? p.rating : defaults.rating
 
-    const span = []
+    const span: number[] = []
     for (let s = lo; s <= hi; s++) span.push(s)
     const seasons = await Promise.all(
       span.map(s =>
@@ -173,8 +220,12 @@ export const rapm: Tool<P, D> = {
 
     const names = new Map<string, string>()
     const days = new Map<string, Day[]>()
-    for (const [rows, players] of seasons) {
+    const extents: Extent[] = []
+    seasons.forEach(([rows, players], i) => {
       for (const pl of players) names.set(pl.player_id, pl.name)
+      const dates = rows.map(r => r.as_of_date as Date)
+      const [first, last] = [min(dates), max(dates)]
+      if (first && last) extents.push({ season: span[i], first, last })
       for (const r of rows) {
         let list = days.get(r.player_id)
         if (!list) days.set(r.player_id, (list = []))
@@ -184,12 +235,11 @@ export const rapm: Tool<P, D> = {
           poss: Number(r.possessions ?? 0),
         })
       }
-    }
+    })
     for (const list of days.values()) list.sort((a, b) => +a.date - +b.date)
 
     const all = []
     for (let s = first_season; s <= last_season; s++) all.push(s)
-    const lists = [...days.values()]
     return {
       from: lo,
       to: hi,
@@ -197,8 +247,8 @@ export const rapm: Tool<P, D> = {
       rating,
       names,
       days,
-      first: min(lists, l => l[0].date) ?? new Date(),
-      last: max(lists, l => l.at(-1)!.date) ?? new Date(),
+      extents,
+      last: extents.at(-1)?.last ?? new Date(),
     }
   },
 
@@ -312,13 +362,12 @@ export const rapm: Tool<P, D> = {
     const plotW = size.width - left - gutter
     const height = size.height ?? Math.round(plotW * 0.62) + top + bottom
     const plotH = height - top - bottom
-    const x = scaleUtc().domain([d.first, d.last]).range([0, plotW])
+    const x = seasonScale(d.extents, plotW, oneSeason ? 0 : 8)
     y.range([plotH, 0])
     const plot = g.append("g").attr("transform", `translate(${left},${top})`)
 
     // x ticks: dates in one season, each month's start by its name; in a
-    // span, a rule between seasons and each season's name under the middle
-    // of its part of the chart
+    // span, a rule between seasons and each season's name under its band
     const grid = plot.append("g").attr("stroke", color.grid)
     const axis = plot
       .append("g")
@@ -326,7 +375,9 @@ export const rapm: Tool<P, D> = {
       .attr("font-weight", type.tick.weight)
       .attr("fill", color.muted)
     if (oneSeason) {
-      for (const t of x.ticks(8)) {
+      const e = d.extents[0]
+      const dates = e ? scaleUtc().domain([e.first, e.last]).ticks(8) : []
+      for (const t of dates) {
         grid.append("line").attr("x1", x(t)).attr("x2", x(t)).attr("y2", plotH)
         axis
           .append("text")
@@ -343,28 +394,26 @@ export const rapm: Tool<P, D> = {
           )
       }
     } else {
-      const n = d.to - d.from + 1
-      // "2022–23" if it fits, "’23" if not
-      const short = plotW / n < 64
-      for (let s = d.from; s <= d.to; s++) {
-        // seasons run from October to June: August is between them
-        const start = new Date(Date.UTC(s - 1, 7, 1))
-        const end = new Date(Date.UTC(s, 7, 1))
-        if (s > d.from)
+      // "2022–23" if every band fits it, "’23" if not
+      const short = d.extents.some((_, i) => {
+        const [a, b] = x.band(i)
+        return b - a < 64
+      })
+      d.extents.forEach((e, i) => {
+        const [a, b] = x.band(i)
+        if (i)
           grid
             .append("line")
-            .attr("x1", x(start))
-            .attr("x2", x(start))
+            .attr("x1", a - 4)
+            .attr("x2", a - 4)
             .attr("y2", plotH)
-        const [a, b] = [Math.max(0, x(start)), Math.min(plotW, x(end))]
-        if (a >= b) continue
         axis
           .append("text")
           .attr("x", (a + b) / 2)
           .attr("y", plotH + 18)
           .attr("text-anchor", "middle")
-          .text(short ? `’${String(s).slice(2)}` : fmtSeason(s))
-      }
+          .text(short ? `’${String(e.season).slice(2)}` : fmtSeason(e.season))
+      })
     }
     // y grid, then zero, the strongest line
     for (const t of ticksY)
