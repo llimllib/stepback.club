@@ -2,7 +2,7 @@
 import Base from "../layouts/Base.astro"
 ---
 
-<Base title="Scores" description="Every game of the day, with the four factors and how the winner won">
+<Base title="Scores" description="Every game of the day, with the four factors and how the winner won, and predictions for the games ahead">
   <span class="kicker">Scores</span>
   <h1 id="day">&nbsp;</h1>
   <div class="days">
@@ -19,6 +19,7 @@ import Base from "../layouts/Base.astro"
   import {
     factorsFor,
     gamesOn,
+    lastGameDay,
     latestNight,
     nearestGameDay,
     seasonRange,
@@ -26,7 +27,13 @@ import Base from "../layouts/Base.astro"
     today,
     type Game,
   } from "../scores/load"
-  import { gameBlock, setFactors } from "../scores/render"
+  import { loggedFor, predictionsOn } from "../scores/predict"
+  import {
+    gameBlock,
+    predictionBlock,
+    setFactors,
+    setLogged,
+  } from "../scores/render"
 
   const base = import.meta.env.BASE_URL.replace(/\/?$/, "/")
   const $ = (id: string) => document.getElementById(id)!
@@ -60,7 +67,12 @@ import Base from "../layouts/Base.astro"
   const valid = (d: string | null) =>
     d && /^\d{4}-\d{2}-\d{2}$/.test(d) && !isNaN(Date.parse(d)) ? d : null
 
+  // ahead as far as there are predictions
   input.max = today()
+  lastGameDay().then(
+    d => (input.max = d && d > today() ? d : today()),
+    () => {},
+  )
   seasonRange().then(
     r => (input.min = `${r.first - 1}-10-01`),
     () => {},
@@ -104,7 +116,24 @@ import Base from "../layouts/Base.astro"
     if (id !== current) return
     neighbors(date, id)
 
-    if (games.length === 0) {
+    // the games not played yet, predicted. A failed read leaves the played
+    // games standing
+    const predictions = await predictionsOn(
+      date,
+      new Set(games.map(g => g.game_id)),
+    ).catch(e => {
+      console.error(e)
+      return undefined
+    })
+    if (id !== current) return
+    if (games.length === 0 && !predictions) {
+      grid.replaceChildren()
+      say(`Couldn't load predictions for ${short(date)}. `, retry())
+      grid.dataset.state = "failed"
+      return
+    }
+
+    if (games.length === 0 && predictions?.length === 0) {
       grid.replaceChildren()
       const [before, after] = await Promise.all([
         nearestGameDay(date, -1).catch(() => undefined),
@@ -124,15 +153,38 @@ import Base from "../layouts/Base.astro"
     }
 
     const blocks = games.map(g => gameBlock(g, base))
-    grid.replaceChildren(...blocks)
-    // ESPN's numbers come apart from the NBA's, so they never hold up the
-    // scores; a game ESPN hasn't published says so
-    const factors = await factorsFor(games).catch(e => {
-      console.error(e)
-      return new Map()
-    })
+    // played and predicted together, in the NBA's order
+    grid.replaceChildren(
+      ...[
+        ...games.map((g, i) => [g.game_id, blocks[i]] as const),
+        ...(predictions ?? []).map(p => [p.game_id, predictionBlock(p)] as const),
+      ]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([, b]) => b),
+    )
+    if (!predictions) say("Predictions couldn't load.")
+    else if (predictions.length)
+      say(
+        `Predicted ${short(predictions[0].asOf)}, from the games before it. ` +
+          "Chance to play is from each team's last 10 games.",
+      )
+    // ESPN's numbers and the predictions come apart from the NBA's, so they
+    // never hold up the scores; a game ESPN hasn't published says so
+    const [factors, logged] = await Promise.all([
+      factorsFor(games).catch(e => {
+        console.error(e)
+        return new Map()
+      }),
+      loggedFor(games).catch(e => {
+        console.error(e)
+        return new Map()
+      }),
+    ])
     if (id !== current) return
-    games.forEach((g, i) => setFactors(blocks[i], g, factors.get(g.game_id)))
+    games.forEach((g, i) => {
+      setFactors(blocks[i], g, factors.get(g.game_id))
+      setLogged(blocks[i], logged.get(g.game_id))
+    })
     grid.dataset.state = "done"
   }
 

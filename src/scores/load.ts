@@ -70,29 +70,50 @@ export async function seasonRange() {
   return { first: d.first_season, last: d.last_season }
 }
 
-const iso = (d: Date | string) =>
+export const iso = (d: Date | string) =>
   typeof d === "string" ? d.slice(0, 10) : d.toISOString().slice(0, 10)
+
+// Whether yarapm has a dataset for a season. It only predicts the current
+// one, and started logging its predictions in 2026–27
+export async function yarapmHas(dataset: string, season: number) {
+  const d = (await metadata("yarapm"))[dataset]
+  return Boolean(d) && season >= d.first_season && season <= d.last_season
+}
+
+// The games yarapm predicts in a season, the ones not played yet, from the
+// day of its latest build on. None if it can't be read: the played games
+// don't wait on it
+async function predictedGames(season: number) {
+  try {
+    if (!(await yarapmHas("predictions", season))) return []
+    return await read("yarapm", "predictions", season, ["game_id", "game_date"])
+  } catch (e) {
+    console.error(e)
+    return []
+  }
+}
 
 const seasons = new Map<number, Promise<Map<string, string[]>>>()
 
-// A season's game ids by date. A season the bucket doesn't have has none
+// A season's game ids by date: the games played, and the ones yarapm
+// predicts. A season the bucket doesn't have has none
 function gamesBySeason(season: number) {
   let p = seasons.get(season)
   if (!p) {
     p = (async () => {
       const { first, last } = await seasonRange()
-      const days = new Map<string, string[]>()
-      if (season < first || season > last) return days
-      const rows = await read("stats", "games", season, [
-        "game_id",
-        "game_date",
+      const days = new Map<string, Set<string>>()
+      if (season < first || season > last) return new Map()
+      const [played, predicted] = await Promise.all([
+        read("stats", "games", season, ["game_id", "game_date"]),
+        predictedGames(season),
       ])
-      for (const r of rows) {
+      for (const r of [...played, ...predicted]) {
         const day = iso(r.game_date)
-        if (!days.has(day)) days.set(day, [])
-        days.get(day)!.push(r.game_id)
+        if (!days.has(day)) days.set(day, new Set())
+        days.get(day)!.add(r.game_id)
       }
-      return days
+      return new Map([...days].map(([day, ids]) => [day, [...ids]]))
     })()
     p.catch(() => seasons.delete(season))
     seasons.set(season, p)
@@ -115,6 +136,13 @@ export async function nearestGameDay(date: string, dir: -1 | 1) {
   return undefined
 }
 
+// The last day with games, played or predicted: how far ahead the date
+// picker goes
+export async function lastGameDay() {
+  const { last } = await seasonRange()
+  return [...(await gamesBySeason(last)).keys()].sort().at(-1)
+}
+
 // The night a page shows by default: yesterday, or, when it has no games
 // (not in yet, or an off day), the latest day before it that does
 export async function latestNight() {
@@ -128,10 +156,14 @@ export async function latestNight() {
 
 const rounds = ["", "Round 1", "Round 2", "Conf. finals", "Finals"]
 
-function kindOf(g: Record<string, any>) {
+// what kind of game it is, for its status line. Predictions have only the
+// type, not the round
+export function kindOf(g: Record<string, any>) {
   switch (g.game_type) {
     case "playoffs":
-      return `${rounds[g.playoff_round]} G${g.series_game}`
+      return g.playoff_round
+        ? `${rounds[g.playoff_round]} G${g.series_game}`
+        : "Playoffs"
     case "play_in":
       return "Play-in"
     case "preseason":
@@ -145,6 +177,55 @@ function kindOf(g: Record<string, any>) {
   }
 }
 
+// A season's team box scores, games and teams, read with the same columns
+// wherever they're needed, so each file is read once
+export const teamLogs = (season: number) =>
+  read("stats", "team_game_logs", season, [
+    "game_id",
+    "team_id",
+    "min",
+    "pts",
+    "fgm",
+    "fga",
+    "fg3m",
+    "ftm",
+    "oreb",
+    "dreb",
+    "tov",
+    "poss",
+    "home",
+    "plus_minus",
+  ])
+export const gameInfo = (season: number) =>
+  read("stats", "games", season, [
+    "game_id",
+    "game_date",
+    "game_type",
+    "playoff_round",
+    "series_game",
+  ])
+export const teamNames = (season: number) =>
+  read("stats", "team_seasons", season, ["team_id", "nba_abbrev", "full_name"])
+
+// A team's wins and losses in a season's games of a type, through a date
+export function record(
+  logs: Record<string, any>[],
+  info: Map<string, Record<string, any>>,
+  team_id: string,
+  type: string,
+  date: string,
+) {
+  let [wins, losses] = [0, 0]
+  for (const r of logs) {
+    const g = info.get(r.game_id)
+    if (r.team_id !== team_id || g?.game_type !== type) continue
+    if (iso(g.game_date) > date) continue
+    if (r.plus_minus > 0) wins++
+    else losses++
+  }
+  return { wins, losses }
+}
+
 // A day's games, in the NBA's order (its game ids). Empty if there were none,
 // or they aren't in the bucket yet
 export async function gamesOn(date: string): Promise<Game[]> {
@@ -152,34 +233,9 @@ export async function gamesOn(date: string): Promise<Game[]> {
   const ids = (await gamesBySeason(season)).get(date)
   if (!ids) return []
   const [logs, teams, info] = await Promise.all([
-    read("stats", "team_game_logs", season, [
-      "game_id",
-      "team_id",
-      "min",
-      "pts",
-      "fgm",
-      "fga",
-      "fg3m",
-      "ftm",
-      "oreb",
-      "dreb",
-      "tov",
-      "poss",
-      "home",
-      "plus_minus",
-    ]),
-    read("stats", "team_seasons", season, [
-      "team_id",
-      "nba_abbrev",
-      "full_name",
-    ]),
-    read("stats", "games", season, [
-      "game_id",
-      "game_date",
-      "game_type",
-      "playoff_round",
-      "series_game",
-    ]),
+    teamLogs(season),
+    teamNames(season),
+    gameInfo(season),
   ])
   const want = new Set(ids)
   const byGame = new Map<string, Record<string, any>[]>()
@@ -190,19 +246,7 @@ export async function gamesOn(date: string): Promise<Game[]> {
   }
   const team = new Map(teams.map(t => [t.team_id, t]))
   const kinds = new Map(info.map(g => [g.game_id, kindOf(g)]))
-  const gameInfo = new Map(info.map(g => [g.game_id, g]))
-  // a team's wins and losses in games of a type, through a date
-  const record = (team_id: string, type: string) => {
-    let [wins, losses] = [0, 0]
-    for (const r of logs) {
-      const g = gameInfo.get(r.game_id)
-      if (r.team_id !== team_id || g?.game_type !== type) continue
-      if (iso(g.game_date) > date) continue
-      if (r.plus_minus > 0) wins++
-      else losses++
-    }
-    return { wins, losses }
-  }
+  const byId = new Map(info.map(g => [g.game_id, g]))
 
   const out: Game[] = []
   for (const id of [...ids].sort()) {
@@ -213,7 +257,7 @@ export async function gamesOn(date: string): Promise<Game[]> {
       abbrev: team.get(r.team_id)?.nba_abbrev ?? "",
       name: team.get(r.team_id)?.full_name ?? "",
       pts: r.pts,
-      ...record(r.team_id, gameInfo.get(id)?.game_type),
+      ...record(logs, byId, r.team_id, byId.get(id)?.game_type, date),
       efg: (r.fgm + 0.5 * r.fg3m) / r.fga,
       tov: r.tov / r.poss,
       oreb: r.oreb / (r.oreb + o.dreb),

@@ -73,7 +73,9 @@ elsewhere: each game links to its rotations, and later to a full box score.
   nearest day with games. Changing the date updates `?date=` without a
   reload.
 - The season comes from the date: August on is the next season. The date
-  input's range comes from `metadata.json`.
+  input's range comes from `metadata.json`, and goes ahead to the last day
+  yarapm predicts. Today and the days ahead show predictions; see
+  `2026-11-07-predictions-design.md`.
 
 ## Missing data
 
@@ -99,7 +101,10 @@ can't be read alone; the page reads the season's few columns and filters.
 - `src/pages/scores.astro`: the shell (headline, controls, an empty grid)
   and its script.
 - `src/scores/load.ts`: data, no DOM. A day's games, each team's four
-  factors, ESPN's factor differences (or `null`), the nearest game days.
+  factors, ESPN's factor differences (or `null`), the nearest game days,
+  played or predicted.
+- `src/scores/predict.ts`: yarapm's predictions for the games not played,
+  and what it predicted for the ones played.
 - `src/scores/render.ts`: plain DOM, a `<table>` per game.
 - `global.css`: the grid and the agate tables. Rules, no boxes.
 
@@ -108,5 +113,7 @@ can't be read alone; the page reads the season's few columns and filters.
 `node scripts/with-dev.mjs node scripts/scores-check.mjs [date]` checks a
 night at 1100px and 390px (no sideways scroll; shots in `shots/`), the
 default date and prev, the offseason, a season the bucket doesn't have,
-ESPN's file blocked and the NBA's logs blocked. It reports games whose
+ESPN's file blocked and the NBA's logs blocked; and today or the next day
+with games, predicted, at both widths, next into the days ahead, and
+yarapm blocked. It reports games whose
 factors don't sum to the margin, without failing.

@@ -31,8 +31,9 @@ or the frame.
 - `node scripts/design-check.mjs`: checks every team's header band passes
   WCAG contrast, and renders an ink-band frame to `shots/ink-band.png`
 - `node scripts/scores-check.mjs [date]`: checks the scores page at desktop
-  and phone widths, its no-games days, and ESPN's or the NBA's data
-  missing; saves `shots/scores-<width>.png`
+  and phone widths, its no-games days, ESPN's or the NBA's data missing,
+  and yarapm's predictions for the days ahead; saves
+  `shots/scores-<width>.png` and `shots/scores-ahead-<width>.png`
 - `npx astro check`: type check
 - `mise run lint`: formatting (oxfmt), lints (oxlint) and types. Run it
   before every commit; `mise run fmt` fixes the formatting. Nothing else

@@ -1029,6 +1029,17 @@ time {
   color: var(--muted);
 }
 
+/* what yarapm predicted for a played game, quieter than how it was won */
+.game .logged {
+  margin-top: 0.2rem;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.game .logged b {
+  color: var(--ink);
+}
+
 .game .more {
   display: inline-block;
   margin-top: 0.35rem;
