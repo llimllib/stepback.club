@@ -194,6 +194,21 @@ function smoothing(d: D) {
   return Math.min(20, Math.max(2, d.league.length / 50))
 }
 
+// Bend the trend's last days onto the last day's estimate, so a line ends
+// at the value beside its name: by none of the gap `reach` days before the
+// end, all of it on the last day, easing in between. Only within the last
+// day's season, as the trend doesn't cross seasons
+function pinEnd(days: Day[], trend: number[], reach: number) {
+  const last = days.length - 1
+  if (last < 0) return trend
+  const gap = days[last].v - trend[last]
+  return trend.map((t, j) => {
+    const k = 1 - (last - j) / reach
+    if (k <= 0 || days[j].season !== days[last].season) return t
+    return t + gap * k * k * (3 - 2 * k)
+  })
+}
+
 interface Point {
   day: Day
   trend: number
@@ -205,7 +220,8 @@ interface Point {
 function series(d: D, p: P) {
   return shown(d, p).map((id, i) => {
     const days = d.days.get(id) ?? []
-    const trend = smooth(days, smoothing(d))
+    const sigma = smoothing(d)
+    const trend = pinEnd(days, smooth(days, sigma), sigma * 2)
     const runs: Point[][] = []
     days.forEach((day, j) => {
       const prev = days[j - 1]

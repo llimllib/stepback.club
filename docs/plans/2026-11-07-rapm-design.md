@@ -45,8 +45,10 @@ The box-score prior is left out for now.
   player's days in the same season (each season starts from a new prior,
   so it doesn't average across them), about a week wide for one season
   and six weeks for a career. It uses later days, so it's hindsight,
-  unlike the days; the value beside a name is the last day's, not the
-  trend's.
+  unlike the days. The value beside a name is the last day's estimate,
+  and the trend's last days (two smoothing widths, within the season)
+  ease onto it, so the line ends at the number beside it and the names
+  stack in the order of their numbers.
 - The trend runs on across the rule between seasons, and breaks where a
   player misses more than 10 of a season's game days (an injury, off a
   roster); a run
