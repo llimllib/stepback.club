@@ -1,0 +1,19 @@
+---
+import Base from "../layouts/Base.astro"
+---
+
+<Base title="RAPM over time" description="What a RAPM model thought of a player on each day of a season or a career">
+  <h1>RAPM over time</h1>
+  <p class="lede">
+    What the model thought of each player on each game day, from the games
+    before it. Drag both ends of the seasons slider together for one
+    season, or apart for a career.
+  </p>
+  <div id="tool"></div>
+</Base>
+
+<script>
+  import { mount } from "../kit/mount"
+  import { rapm } from "../tools/rapm"
+  mount(document.getElementById("tool")!, rapm)
+</script>

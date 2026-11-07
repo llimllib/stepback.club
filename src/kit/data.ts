@@ -2,7 +2,9 @@
 // published bucket: the only data source, in dev and production. Each dataset
 // is one file per season at nba/<source>/<dataset>/season=<season>/data.parquet;
 // see ~/code/nba_data/docs/DATA_DICTIONARY.md, and "Data" in
-// docs/plans/2026-10-10-site-v2-design.md
+// docs/plans/2026-10-10-site-v2-design.md. yarapm's ratings are a source
+// too, though they're its own catalog, at yarapm/<dataset>/...; see
+// ~/code/nba-rapm/docs/DATA.md
 import {
   asyncBufferFromUrl,
   cachedAsyncBuffer,
@@ -17,7 +19,8 @@ const BASE = "https://basketball-data.billmill.org"
 export type Row = Record<string, any>
 
 export function datasetUrl(source: string, dataset: string, season: number) {
-  return `${BASE}/nba/${source}/${dataset}/season=${season}/data.parquet`
+  const root = source === "yarapm" ? "yarapm" : `nba/${source}`
+  return `${BASE}/${root}/${dataset}/season=${season}/data.parquet`
 }
 
 const cache = new Map<string, Promise<Row[]>>()
@@ -87,23 +90,28 @@ export function readWhere(
 }
 
 export interface DatasetInfo {
-  source: string
+  // nba_data's only
+  source?: string
   first_season: number
   last_season: number
   seasons: number
   updated: string
 }
 
-let meta: Promise<Record<string, DatasetInfo>> | undefined
+const meta = new Map<string, Promise<Record<string, DatasetInfo>>>()
 
-// The catalog's description of every dataset: which seasons it has, and when
+// A catalog's description of every dataset: which seasons it has, and when
 // it last changed
-export function metadata() {
-  meta ??= fetch(`${BASE}/nba/metadata.json`)
-    .then(r => (r.ok ? r.json() : Promise.reject(r.status)))
-    .then(m => m.datasets)
-  meta.catch(() => (meta = undefined))
-  return meta
+export function metadata(catalog: "nba" | "yarapm" = "nba") {
+  let m = meta.get(catalog)
+  if (!m) {
+    m = fetch(`${BASE}/${catalog}/metadata.json`)
+      .then(r => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then(j => j.datasets)
+    m.catch(() => meta.delete(catalog))
+    meta.set(catalog, m)
+  }
+  return m
 }
 
 // The lookup tables, which every tool needs to turn ids into names

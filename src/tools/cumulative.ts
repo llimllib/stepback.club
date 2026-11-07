@@ -4,6 +4,7 @@
 import { format, line, max, precisionFixed, scaleLinear, select, sum } from "d3"
 import { metadata, read } from "../kit/data"
 import { agate } from "../kit/frame"
+import { gutterWidth, lineLabels, lineStyle } from "../kit/lines"
 import { color, type } from "../kit/theme"
 import type { Body, Mark, Tool } from "../kit/tool"
 
@@ -49,17 +50,6 @@ const stats: Record<
   off_fouls: { label: "Offensive fouls" },
 }
 
-// Okabe-Ito, which is colorblind-safe, without its vermilion (too close to
-// the annotation voice) and yellow (gone on newsprint). Past six players the
-// colors repeat on dashed lines
-const palette = [
-  "#0072B2",
-  "#E69F00",
-  "#009E73",
-  "#CC79A7",
-  "#56B4E9",
-  "#141414",
-]
 const MAX_PLAYERS = 12
 const LEADERS = 5
 
@@ -158,8 +148,7 @@ function series(d: D, p: P) {
     return {
       id,
       name: d.names.get(id) ?? id,
-      color: palette[i % palette.length],
-      dashed: i >= palette.length,
+      ...lineStyle(i),
       points,
     }
   })
@@ -336,13 +325,10 @@ export const cumulative: Tool<P, D> = {
     const left =
       (max(ticksY, t => width(tick(t), type.tick.size, type.tick.weight)) ??
         20) + 10
-    const gutter =
-      (max(ss, (s, i) =>
-        Math.max(
-          width(s.name, type.label.size, type.label.weight),
-          width(fmt(ends[i].v), type.sub.size, type.sub.weight),
-        ),
-      ) ?? 0) + 33
+    const gutter = gutterWidth(
+      ss.map((s, i) => ({ name: s.name, sub: fmt(ends[i].v) })),
+      width,
+    )
     measure.remove()
 
     const plotW = size.width - left - gutter
@@ -416,81 +402,17 @@ export const cumulative: Tool<P, D> = {
         .attr("stroke-linejoin", "round")
         .attr("stroke-dasharray", s.dashed ? "7 4" : null)
 
-    // names in the gutter, spread apart so they don't overlap, each joined
-    // to the end of its line
-    const lineH = type.label.size + type.sub.size + 2
-    // from a name's baseline up to its middle, where its swatch is
-    const mid = type.label.size * 0.35
-    // each name starts with its swatch level with its line's end
-    const labels = ss
-      .map((s, i) => ({ s, end: ends[i], ly: y(ends[i].v) + mid }))
-      .sort((a, b) => a.ly - b.ly)
-    const minY = type.label.size * 0.8
-    const maxY = plotH - type.sub.size - 4
-    for (let i = 0; i < labels.length; i++)
-      labels[i].ly = Math.max(labels[i].ly, i ? labels[i - 1].ly + lineH : minY)
-    for (let i = labels.length - 1; i >= 0; i--)
-      labels[i].ly = Math.min(
-        labels[i].ly,
-        i < labels.length - 1 ? labels[i + 1].ly - lineH : maxY,
-      )
-    // each name starts with a swatch of its line, as in a legend, so the
-    // leader to it can be a thin gray rule that doesn't read as data
-    const sx = plotW + 12
-    const lx = sx + 17
-    const endR = 3.5
-    for (const { s, end, ly } of labels) {
-      const [ex, ey] = [x(end.n), y(end.v)]
-      const my = ly - mid
-      const [dx, dy] = [sx - 3 - ex, my - ey]
-      const k = (endR + 2) / Math.hypot(dx, dy)
-      // a line ending at the edge, level with its name, is joined to it
-      // by the swatch beside it; a leader there would be a stub
-      const level = ex > plotW - 1 && Math.abs(dy) < type.label.size / 2
-      if (!level)
-        plot
-          .append("line")
-          .attr("x1", ex + dx * k)
-          .attr("y1", ey + dy * k)
-          .attr("x2", sx - 3)
-          .attr("y2", my)
-          .attr("stroke", color.muted)
-          .attr("stroke-width", 0.75)
-          .attr("stroke-dasharray", "3 3")
-      // the line's end, so it's plain where the data stops
-      plot
-        .append("circle")
-        .attr("cx", ex)
-        .attr("cy", ey)
-        .attr("r", endR)
-        .attr("fill", s.color)
-        .attr("stroke", color.bg)
-        .attr("stroke-width", 1)
-      plot
-        .append("line")
-        .attr("x1", sx)
-        .attr("x2", sx + 12)
-        .attr("y1", my)
-        .attr("y2", my)
-        .attr("stroke", s.color)
-        .attr("stroke-width", 2.25)
-        .attr("stroke-dasharray", s.dashed ? "4 2" : null)
-      plot
-        .append("text")
-        .attr("x", lx)
-        .attr("y", ly)
-        .attr("font-size", type.label.size)
-        .attr("font-weight", type.label.weight)
-        .text(s.name)
-      plot
-        .append("text")
-        .attr("x", lx)
-        .attr("y", ly + type.sub.size + 1)
-        .attr("font-size", type.sub.size)
-        .attr("font-weight", type.sub.weight)
-        .attr("fill", color.muted)
-        .text(`${fmt(end.v)} · ${end.n} g`)
-    }
+    lineLabels(
+      plot,
+      ss.map((s, i) => ({
+        ...s,
+        sub: `${fmt(ends[i].v)} · ${ends[i].n} g`,
+        x: x(ends[i].n),
+        y: y(ends[i].v),
+      })),
+      plotW,
+      plotH,
+    )
 
     // every game is a mark, so it can be labeled or pointed at
     const marks: Mark[] = []

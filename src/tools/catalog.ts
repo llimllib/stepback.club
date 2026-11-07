@@ -33,6 +33,13 @@ export const catalog = [
     takes: ["Seasons", "Playoffs", "Stat", "Players"],
   },
   {
+    href: "rapm",
+    name: "RAPM over time",
+    blurb:
+      "A player's RAPM on each game day, as the model saw it then, over a season or a career.",
+    takes: ["Seasons", "Rating", "Players"],
+  },
+  {
     href: "efficiency",
     name: "Team efficiency",
     blurb:
