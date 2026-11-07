@@ -46,12 +46,13 @@ const ratings: Record<string, { label: string; name: string; phrase: string }> =
 
 const MAX_PLAYERS = 12
 const LEADERS = 5
-// days further apart than this break a line: an offseason, an injury, a
+// days of a season further apart than this break a line: an injury, a
 // player off every roster. The All-Star break is about a week
 const GAP_DAYS = 10
 const DAY = 86_400_000
 
 interface Day {
+  season: number
   date: Date
   v: number
   // offensive possessions this season before the day
@@ -163,16 +164,64 @@ function shown(d: D, p: P) {
   return ids.length ? ids : leaders(d)
 }
 
-// each shown player's days, split into runs at the gaps
+// A day's value on the trend line: a Gaussian-weighted average of the
+// player's days around it in the same season, `sigma` of his days wide.
+// Each season starts from a new prior, so the trend doesn't average across
+// them. It uses later days, so unlike the days themselves it's hindsight
+function smooth(days: Day[], sigma: number) {
+  const reach = Math.ceil(sigma * 3)
+  return days.map((day, i) => {
+    let [sum, total] = [0, 0]
+    for (
+      let j = Math.max(0, i - reach);
+      j <= Math.min(days.length - 1, i + reach);
+      j++
+    ) {
+      if (days[j].season !== day.season) continue
+      const w = Math.exp(-((j - i) ** 2) / (2 * sigma * sigma))
+      sum += w * days[j].v
+      total += w
+    }
+    return sum / total
+  })
+}
+
+// how wide the trend's smoothing is, in a player's days: a week or so in a
+// season, about six weeks over a career
+function smoothing(d: D) {
+  const days = d.extents.reduce((t, e) => t + (+e.last - +e.first) / DAY, 0)
+  return Math.min(20, Math.max(2, days / 60))
+}
+
+interface Point {
+  day: Day
+  trend: number
+}
+
+// each shown player's days with their trend, split into runs where a season
+// has a gap. The offseasons are left out of the chart, so a run goes on
+// into the next season
 function series(d: D, p: P) {
   return shown(d, p).map((id, i) => {
     const days = d.days.get(id) ?? []
-    const runs: Day[][] = []
+    const trend = smooth(days, smoothing(d))
+    const runs: Point[][] = []
     days.forEach((day, j) => {
-      if (!j || +day.date - +days[j - 1].date > GAP_DAYS * DAY) runs.push([])
-      runs.at(-1)!.push(day)
+      const prev = days[j - 1]
+      if (
+        !prev ||
+        (prev.season === day.season && +day.date - +prev.date > GAP_DAYS * DAY)
+      )
+        runs.push([])
+      runs.at(-1)!.push({ day, trend: trend[j] })
     })
-    return { id, name: d.names.get(id) ?? id, ...lineStyle(i), days, runs }
+    return {
+      id,
+      name: d.names.get(id) ?? id,
+      ...lineStyle(i),
+      points: runs.flat(),
+      runs,
+    }
   })
 }
 
@@ -230,6 +279,7 @@ export const rapm: Tool<P, D> = {
         let list = days.get(r.player_id)
         if (!list) days.set(r.player_id, (list = []))
         list.push({
+          season: span[i],
           date: r.as_of_date,
           v: Number(r[rating]),
           poss: Number(r.possessions ?? 0),
@@ -297,15 +347,27 @@ export const rapm: Tool<P, D> = {
   },
 
   describe(d, p) {
+    const ss = series(d, p)
     const span =
       d.from === d.to
         ? `in the ${fmtSeason(d.to)} season`
         : `from ${fmtSeason(d.from)} to ${fmtSeason(d.to)}`
+    // one player gets his days as dots under the trend; more get the trend
+    const one = ss.length === 1
+    const what = one
+      ? "The model's estimate on each game day, from the games before it, and its trend"
+      : "The trend of the model's estimate on each game day, from the games before it"
     return {
       title: ratings[d.rating].name,
       who: who(d, p),
-      context: `The model's estimate on each game day, from the games before it, ${span}. Points per 100 possessions above average`,
-      counts: `${series(d, p).length} players`,
+      context: `${what}, ${span}. Points per 100 possessions above average`,
+      legend: one
+        ? [
+            { symbol: "dot", color: ss[0].color, text: "Each day" },
+            { symbol: "line", color: ss[0].color, text: "Trend" },
+          ]
+        : undefined,
+      counts: one ? undefined : `${ss.length} players`,
       source: "Data: yarapm",
     }
   },
@@ -316,8 +378,12 @@ export const rapm: Tool<P, D> = {
     const top = 22
     const bottom = 48
     const oneSeason = d.from === d.to
+    // one player's days are dots under his trend
+    const dots = ss.length === 1
 
-    const values = ss.flatMap(s => s.days.map(day => day.v))
+    const values = ss.flatMap(s =>
+      s.points.map(pt => (dots ? pt.day.v : pt.trend)),
+    )
     const y = scaleLinear()
       .domain([Math.min(0, ...values), Math.max(0, ...values)])
       .nice(6)
@@ -338,16 +404,16 @@ export const rapm: Tool<P, D> = {
     const left =
       (max(ticksY, t => width(tick(t), type.tick.size, type.tick.weight)) ??
         20) + 10
-    // a line that stops before the span's last day says when
+    // the name's value is the last day's, not the trend's. A line that
+    // stops before the span's last day says when
     const ends = ss.map(s => {
-      const end = s.days.at(-1)
+      const end = s.points.at(-1)
       if (!end) return undefined
-      const early = +end.date < +d.last
+      const { date, v } = end.day
+      const early = +date < +d.last
       return {
-        day: end,
-        sub: early
-          ? `${fmt(end.v)} · ${fmtDate(end.date, !oneSeason)}`
-          : fmt(end.v),
+        end,
+        sub: early ? `${fmt(v)} · ${fmtDate(date, !oneSeason)}` : fmt(v),
       }
     })
     const gutter = gutterWidth(
@@ -440,10 +506,20 @@ export const rapm: Tool<P, D> = {
       .call(agate)
       .text(`↑ ${ratings[d.rating].name}, points per 100 possessions`)
 
-    // the lines, the last-picked underneath. A run of one day is a dot
-    const path = line<Day>()
-      .x(day => x(day.date))
-      .y(day => y(day.v))
+    if (dots)
+      for (const pt of ss[0].points)
+        plot
+          .append("circle")
+          .attr("cx", x(pt.day.date))
+          .attr("cy", y(pt.day.v))
+          .attr("r", 1.75)
+          .attr("fill", ss[0].color)
+          .attr("fill-opacity", 0.45)
+
+    // the trends, the last-picked underneath. A run of one day is a dot
+    const path = line<Point>()
+      .x(pt => x(pt.day.date))
+      .y(pt => y(pt.trend))
     for (const s of ss.toReversed())
       for (const run of s.runs)
         if (run.length > 1)
@@ -458,8 +534,8 @@ export const rapm: Tool<P, D> = {
         else
           plot
             .append("circle")
-            .attr("cx", x(run[0].date))
-            .attr("cy", y(run[0].v))
+            .attr("cx", x(run[0].day.date))
+            .attr("cy", y(run[0].trend))
             .attr("r", 2.5)
             .attr("fill", s.color)
 
@@ -468,26 +544,27 @@ export const rapm: Tool<P, D> = {
       ss.flatMap((s, i) => {
         const e = ends[i]
         if (!e) return []
-        return [{ ...s, sub: e.sub, x: x(e.day.date), y: y(e.day.v) }]
+        return [{ ...s, sub: e.sub, x: x(e.end.day.date), y: y(e.end.trend) }]
       }),
       plotW,
       plotH,
     )
 
-    // every day is a mark, so it can be labeled or pointed at
+    // every day is a mark, so it can be labeled or pointed at: its dot, or
+    // its place on the trend. Either way the label is the day's estimate
     const poss = format(",")
     const marks: Mark[] = []
     for (const s of ss)
-      for (const day of s.days)
+      for (const { day, trend } of s.points)
         marks.push({
           key: `${s.id}:${isoDate(day.date)}`,
           x: x(day.date) + left,
-          y: y(day.v) + top,
+          y: y(dots ? day.v : trend) + top,
           r: 3,
           label: `${fmtDate(day.date, true)} · ${fmt(day.v)} · ${poss(day.poss)} poss`,
         })
 
-    if (!ss.some(s => s.days.length))
+    if (!ss.some(s => s.points.length))
       plot
         .append("text")
         .attr("x", plotW / 2)

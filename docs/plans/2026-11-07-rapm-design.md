@@ -34,9 +34,18 @@ The box-score prior is left out for now.
   season, season names under the bands for a span. Within a season it's
   real time, so an injury is still a gap.
 - y is points per 100 possessions, signed, with zero the strongest line.
-- A line breaks where a player's days are more than 10 apart (offseason,
-  injury, off a roster); a run of one day is a dot.
+- After Dunks & Threes' EPM chart: one player's days are faint dots under
+  a trend line; two or more players get only their trends, as five dot
+  clouds would be mush. The trend is a Gaussian-weighted average of a
+  player's days in the same season (each season starts from a new prior,
+  so it doesn't average across them), about a week wide for one season
+  and six weeks for a career. It uses later days, so it's hindsight,
+  unlike the days; the value beside a name is the last day's, not the
+  trend's.
+- The trend runs on across the rule between seasons, and breaks where a
+  season's days are more than 10 apart (an injury, off a roster); a run
+  of one day is a dot.
 - Lines, colors, and names in the gutter as in cumulative.
-- Every day is a mark (`<player>:<date>`), labeled "Jan 5, 2026 · +6.2 ·
+- Every day is a mark (`<player>:<date>`), at its dot or on the trend, labeled "Jan 5, 2026 · +6.2 ·
   1,840 poss", so the reader sees how much the estimate rests on. Notes
   sit at `{t, v}`: a time in ms and a value.
