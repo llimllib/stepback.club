@@ -39,6 +39,11 @@ const briefs = ["efficiency", "cumulative", "rotations"].map(
           <ul id="board" hidden></ul>
           <a class="more" href={`${base}scores`}>Box scores →</a>
         </aside>
+        <aside class="about board" id="ahead" hidden>
+          <span class="kicker" id="ahead-day">Tonight</span>
+          <ul id="ahead-games"></ul>
+          <a class="more" id="ahead-more" href={`${base}scores`}>Predictions →</a>
+        </aside>
       </figcaption>
     </figure>
     <section class="briefs" aria-label="More tools">
@@ -63,9 +68,12 @@ const briefs = ["efficiency", "cumulative", "rotations"].map(
     rotationsBrief,
     type Brief,
   } from "../tools/briefs"
-  import { latestNight } from "../scores/load"
+  import { latestNight, today } from "../scores/load"
+  import { nextNight } from "../scores/predict"
 
   const pct = (v: number) => `${(v * 100).toFixed(1)}%`
+  // a chance to win, padded so the lines align: " 9%"
+  const chance = (v: number) => `${Math.round(v * 100)}%`.padStart(3)
   const { data, p } = await embed(document.getElementById("lead-chart")!, scatter, {
     pair: "usg-ts",
   })
@@ -122,6 +130,43 @@ const briefs = ["efficiency", "cumulative", "rotations"].map(
         }),
       )
       board.hidden = false
+    })
+    .catch(e => console.error(e))
+
+  // the next night's predictions, closest first, under last night's scores.
+  // Each line is the two teams' chances to win, the favorite bold
+  nextNight()
+    .then(({ date, games: ahead }) => {
+      if (ahead.length === 0) return
+      const day =
+        date === today()
+          ? "Tonight"
+          : new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", {
+              timeZone: "UTC",
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+            })
+      document.getElementById("ahead-day")!.textContent =
+        `${day} · Closest first`
+      const more = document.getElementById("ahead-more") as HTMLAnchorElement
+      more.search = `?date=${date}`
+      document.getElementById("ahead-games")!.replaceChildren(
+        ...ahead.map(game => {
+          const li = document.createElement("li")
+          const [a, h] = game.teams
+          const fav = a.win > h.win ? 0 : 1
+          ;[`${a.abbrev} ${chance(a.win)}`, `${chance(h.win)} ${h.abbrev}`].forEach(
+            (text, i) => {
+              const e = document.createElement(i === fav ? "b" : "span")
+              e.textContent = text
+              li.append(i ? " – " : "", e)
+            },
+          )
+          return li
+        }),
+      )
+      document.getElementById("ahead")!.hidden = false
     })
     .catch(e => console.error(e))
 

@@ -6,12 +6,15 @@
 import { read } from "../kit/data"
 import {
   gameInfo,
+  gamesOn,
   iso,
   kindOf,
+  nearestGameDay,
   record,
   seasonOf,
   teamLogs,
   teamNames,
+  today,
   yarapmHas,
   type Game,
 } from "./load"
@@ -154,6 +157,25 @@ export async function predictionsOn(
       asOf,
     }))
     .sort((a, b) => a.game_id.localeCompare(b.game_id))
+}
+
+// how far a game is from a toss-up
+const lopsided = (p: Prediction) => Math.abs(p.teams[0].win - 0.5)
+
+// The next night's predictions, for the front page: tonight's games not
+// played yet, or, with none, the next day with games. Closest first, so the
+// games worth watching lead
+export async function nextNight() {
+  let date = today()
+  const played = await gamesOn(date)
+  let games = await predictionsOn(date, new Set(played.map(g => g.game_id)))
+  if (games.length === 0) {
+    const next = await nearestGameDay(date, 1)
+    if (!next) return { date, games }
+    date = next
+    games = await predictionsOn(date, new Set())
+  }
+  return { date, games: games.sort((a, b) => lopsided(a) - lopsided(b)) }
 }
 
 // Last names, or full names where two share one: OKC's Jalen and Jaylin

@@ -85,6 +85,14 @@ function logo(t: { abbrev: string }) {
   return img
 }
 
+// a logo after an abbreviation, as the home team's in a prediction's
+// headline: "72% ATL" and its logo
+function logoAfter(t: { abbrev: string }) {
+  const img = logo(t)
+  img.classList.add("after")
+  return img
+}
+
 export function gameBlock(g: Game, base: string) {
   const [a, h] = g.teams
   const w = sides(g)[0]
@@ -202,60 +210,32 @@ const rating = (v: number) =>
         ? `−${(-v).toFixed(1)}`
         : "0.0"
 
-const predictedColumns: {
+// a chance, as a whole percent: 39%
+const chance = (v: number) => `${Math.round(v * 100)}%`
+
+// The two net ratings: points per 100 possessions better than an average
+// team, with the expected lineup and at full strength
+const ratingColumns: {
   head: string
-  title: string
   value: (t: PredictedTeam) => number
-  fmt: (v: number) => string
 }[] = [
-  {
-    head: "Win",
-    title: "Chance to win",
-    value: t => t.win,
-    fmt: v => `${Math.round(v * 100)}%`,
-  },
-  {
-    head: "Today",
-    title:
-      "Net rating with the expected lineup: points per 100 possessions better than an average team",
-    value: t => t.net,
-    fmt: rating,
-  },
-  {
-    head: "Full",
-    title: "Net rating at full strength, with everyone available",
-    value: t => t.full,
-    fmt: rating,
-  },
+  { head: "Expected lineup", value: t => t.net },
+  { head: "Full roster", value: t => t.full },
 ]
 
-// A game not played yet: yarapm's expected score, each team's chance to win
-// and ratings, and who each is likely without
+// A game not played yet. The headline is each team's chance to win, "PHI
+// 39% – 61% BOS", so it can't be read as a result; then the expected score,
+// each team's net rating with its expected lineup and at full strength,
+// and who each is likely without
 export function predictionBlock(p: Prediction) {
   const [a, h] = p.teams
   const fav = a.win > h.win ? a : h
+  // the favorite bold, as a box score's winner is
+  const side = (t: PredictedTeam, ...parts: (Node | string)[]) =>
+    el(t === fav ? "b" : "span", {}, el("abbr", { title: t.name }, ...parts))
   // whole points, unless they'd round to a tie
   const digits = Math.round(a.pts) === Math.round(h.pts) ? 1 : 0
-  const score = (t: PredictedTeam) =>
-    el(
-      t === fav ? "b" : "span",
-      {},
-      el(
-        "abbr",
-        { title: t.name },
-        logo(t),
-        `${t.abbrev} ${t.pts.toFixed(digits)}`,
-      ),
-    )
 
-  const head = el(
-    "tr",
-    {},
-    el("th", {}),
-    ...predictedColumns.map(c =>
-      el("th", { scope: "col", title: c.title }, c.head),
-    ),
-  )
   const row = (t: PredictedTeam, o: PredictedTeam) =>
     el(
       "tr",
@@ -267,9 +247,9 @@ export function predictionBlock(p: Prediction) {
         " ",
         el("span", { className: "record" }, `${t.wins}-${t.losses}`),
       ),
-      ...predictedColumns.map(c => {
+      ...ratingColumns.map(c => {
         const [v, ov] = [c.value(t), c.value(o)]
-        const [s, os] = [c.fmt(v), c.fmt(ov)]
+        const [s, os] = [rating(v), rating(ov)]
         return el("td", {}, s !== os && v > ov ? el("b", {}, s) : s)
       }),
     )
@@ -284,9 +264,7 @@ export function predictionBlock(p: Prediction) {
       ? out.flatMap((t, i) => [
           i ? el("br") : "",
           `${t.abbrev}: `,
-          t.missing
-            .map(m => `${m.name} ${Math.round(m.play * 100)}%`)
-            .join(" · "),
+          t.missing.map(m => `${m.name} ${chance(m.play)}`).join(" · "),
           " to play",
         ])
       : ["Both at full strength"]),
@@ -307,11 +285,41 @@ export function predictionBlock(p: Prediction) {
         .filter(Boolean)
         .join(" · "),
     ),
-    el("h2", { className: "score" }, score(a), score(h)),
+    el(
+      "h2",
+      { className: "score" },
+      side(a, logo(a), `${a.abbrev} ${chance(a.win)}`),
+      el("span", { className: "dash" }, "–"),
+      side(h, `${chance(h.win)} ${h.abbrev}`, logoAfter(h)),
+    ),
+    el(
+      "p",
+      { className: "expected" },
+      `Expected score: ${a.abbrev} ${a.pts.toFixed(digits)}, ${h.abbrev} ${h.pts.toFixed(digits)}`,
+    ),
     el(
       "table",
       { className: "box" },
-      el("thead", {}, head),
+      el(
+        "thead",
+        {},
+        el(
+          "tr",
+          {},
+          el("th", {}),
+          el(
+            "th",
+            { scope: "colgroup", colSpan: 2, className: "group" },
+            "Net rating per 100 possessions",
+          ),
+        ),
+        el(
+          "tr",
+          {},
+          el("th", {}),
+          ...ratingColumns.map(c => el("th", { scope: "col" }, c.head)),
+        ),
+      ),
       el("tbody", {}, row(a, h), row(h, a)),
     ),
     without,

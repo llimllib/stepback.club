@@ -6,8 +6,8 @@
 //   node scripts/with-dev.mjs node scripts/scores-check.mjs [date]
 //
 // The date is a night with games (default 2026-10-28). Saves
-// shots/scores-<width>.png and shots/scores-ahead-<width>.png, and exits 1
-// if a check fails
+// shots/scores-<width>.png, shots/scores-ahead-<width>.png and
+// shots/front-board.png, and exits 1 if a check fails
 import { chromium } from "playwright"
 import fs from "node:fs"
 
@@ -188,6 +188,30 @@ for (const width of [1100, 390]) {
     (await state(page)) === "done" && (await page.locator(".game").count()) > 0,
     `without yarapm, ${night}'s scores still show`,
   )
+  await page.close()
+}
+
+// the front page: last night's scores, and the next night's predictions
+// closest first
+{
+  const page = await browser.newPage({
+    deviceScaleFactor: 2,
+    viewport: { width: 1100, height: 900 },
+  })
+  page.on("pageerror", e => console.error(`[page error] ${e.message}`))
+  await page.goto(server)
+  await page.waitForSelector("#ahead:not([hidden])", { timeout: 30_000 })
+  const lines = await page.locator("#ahead-games li").allTextContents()
+  const odds = lines.map(l => Math.abs(50 - parseInt(l.slice(4))))
+  check(lines.length > 0, `the front page predicts ${lines.length} games`)
+  check(
+    odds.every((v, i) => !i || v >= odds[i - 1]),
+    `closest first: ${lines[0]} … ${lines.at(-1)}`,
+  )
+  console.log(`     ${await page.locator("#ahead-day").textContent()}`)
+  await page
+    .locator(".lead figcaption")
+    .screenshot({ path: "shots/front-board.png" })
   await page.close()
 }
 

@@ -819,6 +819,11 @@ time {
   font-variant-numeric: tabular-nums;
 }
 
+/* the predictions are ranked, closest first, so one column reads in order */
+#ahead-games {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .board ul[hidden] {
   display: none;
 }
@@ -1027,6 +1032,30 @@ time {
 
 .why.missing {
   color: var(--muted);
+}
+
+/* a prediction's headline is chances, not a score: the logos sit outside
+   them, the home team's after its abbreviation */
+.game.predicted .score {
+  gap: 0.5rem;
+}
+
+.game.predicted .score .logo.after {
+  margin: 0 0 0 0.2em;
+}
+
+.game .expected {
+  margin-bottom: 0.35rem;
+  text-transform: uppercase;
+}
+
+/* the header over both ratings, and the ratings' own, under it */
+.box thead tr:first-child:has(.group) th {
+  border-bottom: 0;
+}
+
+.game.predicted .box thead th {
+  cursor: default;
 }
 
 /* what yarapm predicted for a played game, quieter than how it was won */
