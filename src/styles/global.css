@@ -1148,6 +1148,12 @@ time {
   text-align: left;
 }
 
+/* a long name wraps, so a phone doesn't scroll sideways: Kentavious
+   Caldwell-Pope */
+.lineup tbody th[scope="row"] {
+  white-space: normal;
+}
+
 .lineup thead th {
   color: var(--muted);
   border-bottom: var(--rule);
