@@ -53,9 +53,10 @@ A table, one row per team, sorted by net, offense or defense:
 Five, the most allowed:
 
 - **Season**
-- **Source**: NBA.com, Cleaning the Glass, or yarapm's RAPM (see below). They're the same chart over a
-  different definition (CTG removes garbage time), so one tool; switching
-  between them shows which teams garbage time flatters.
+- **Source**: NBA.com, Cleaning the Glass, or yarapm's RAPM (see below).
+  They're the same chart over a different definition (CTG removes garbage
+  time), so one tool; switching between them shows which teams garbage
+  time flatters.
 - **Playoffs**: a toggle. Playoffs include the play-in, as CTG's do.
 - **Games**: each source's own windows, reset to its default (the whole
   season) when the source changes:
