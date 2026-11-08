@@ -53,7 +53,7 @@ A table, one row per team, sorted by net, offense or defense:
 Five, the most allowed:
 
 - **Season**
-- **Source**: NBA.com or Cleaning the Glass. They're the same chart over a
+- **Source**: NBA.com, Cleaning the Glass, or yarapm's RAPM (see below). They're the same chart over a
   different definition (CTG removes garbage time), so one tool; switching
   between them shows which teams garbage time flatters.
 - **Playoffs**: a toggle. Playoffs include the play-in, as CTG's do.
@@ -73,6 +73,24 @@ Five, the most allowed:
 - NBA: `stats/team_game_logs` with `stats/games` for the game type and
   `stats/team_seasons` for abbreviations, 2010 on.
 - CTG: `ctg/ctg_team_summary`, 2010 on.
+
+## RAPM (2026-11-07)
+
+Two more sources, from yarapm's `team_ratings_daily`: **RAPM, full
+strength** and **RAPM, expected lineup**. Each team's offense, defense and
+net from its players' ratings weighted by their minutes, everyone
+available or counting who's likely out, against the average team. Against
+NBA.com's numbers, they show which teams' results run ahead of or behind
+their players. They're the latest day's: as of yarapm's last build for this
+season, the day after the Finals for a past one, from 2011–12 on.
+
+- The title says **Team strength**, not efficiency, and the deck says
+  whose ratings they are, since they're not the team's results.
+- No Playoffs toggle and no Games control: a rating is a rating as of a
+  day, not a sum over games.
+- The records are the NBA's regular season's, as for NBA.com.
+- The average is yarapm's league average, which the plain mean of the
+  teams' ratings comes back to, as theirs are against the average team.
 
 ## Not done
 
