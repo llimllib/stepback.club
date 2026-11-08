@@ -159,6 +159,22 @@ export async function predictionsOn(
     .sort((a, b) => a.game_id.localeCompare(b.game_id))
 }
 
+// A season from an NBA game id, which encodes it: 0022600212 is in the
+// season starting in 2026, 2026–27
+export const seasonOfGame = (game_id: string) =>
+  2001 + Number(game_id.slice(3, 5))
+
+// One game's prediction, by its id. Undefined if yarapm doesn't predict it:
+// it's been played, or its teams aren't set
+export async function predictionFor(game_id: string) {
+  const season = seasonOfGame(game_id)
+  if (!(await yarapmHas("predictions", season))) return undefined
+  const row = (await predictions(season)).find(r => r.game_id === game_id)
+  if (!row) return undefined
+  const day = await predictionsOn(iso(row.game_date), new Set())
+  return day.find(p => p.game_id === game_id)
+}
+
 // how far a game is from a toss-up
 const lopsided = (p: Prediction) => Math.abs(p.teams[0].win - 0.5)
 

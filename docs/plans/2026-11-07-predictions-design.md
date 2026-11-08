@@ -95,8 +95,20 @@ each team's last 10 games."
 12. **Failures**: with yarapm unreadable, a day with no played games says
     "Couldn't load predictions" with a retry; a played day shows its scores
     as before, and the prediction lines are left out.
-13. **No link** on a predicted game; a box score's goes to its rotations,
-    which don't exist yet.
+13. **"Lineups →" on a predicted game** goes to `/matchup?game=<id>`, a
+    plain page like scores: the players the prediction rests on, so a
+    reader can check a number that looks wrong. Each team's projected
+    players from yarapm's per-game `minutes`, by minutes: expected
+    minutes, chance to play, box-score prior, rating, and what he adds
+    (rating × minutes ÷ 48). A rating 1.5 or more from its prior is bold:
+    what on-court results say and the box score doesn't. Under them, the
+    total, less an average team's, is the net rating, which is taken from
+    yarapm so it matches the prediction's whatever the rounding of the
+    minutes and ratings it publishes; and the net rating from the priors
+    alone. BOS at PHI, Nov 10, 63% to Boston against a market near 52%,
+    is the case it was built for: +9.0 net, +1.0 from priors alone, while
+    Philadelphia is +2.5 and +0.8. Offense and defense apart are left out
+    for now.
 
 ## Answered
 

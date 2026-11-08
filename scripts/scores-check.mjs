@@ -6,8 +6,9 @@
 //   node scripts/with-dev.mjs node scripts/scores-check.mjs [date]
 //
 // The date is a night with games (default 2026-10-28). Saves
-// shots/scores-<width>.png, shots/scores-ahead-<width>.png and
-// shots/front-board.png, and exits 1 if a check fails
+// shots/scores-<width>.png, shots/scores-ahead-<width>.png,
+// shots/matchup-<width>.png and shots/front-board.png, and exits 1 if a
+// check fails
 import { chromium } from "playwright"
 import fs from "node:fs"
 
@@ -188,6 +189,49 @@ for (const width of [1100, 390]) {
     (await state(page)) === "done" && (await page.locator(".game").count()) > 0,
     `without yarapm, ${night}'s scores still show`,
   )
+  await page.close()
+}
+
+// a prediction's lineups: the matchup page, whose net ratings are the
+// prediction's, wide and narrow
+for (const width of [1100, 390]) {
+  const page = await ahead({ width })
+  const block = page.locator(".game.predicted").first()
+  const nets = await block.locator("tbody tr td:nth-child(2)").allTextContents()
+  await block.locator("a.more").click()
+  await page.waitForSelector("#matchup:not([data-state=loading])[data-state]", {
+    state: "attached",
+    timeout: 30_000,
+  })
+  check(
+    (await page.locator("#matchup").getAttribute("data-state")) === "done",
+    `${await page.locator("#title").textContent()} at ${width}px loads`,
+  )
+  const tables = await page.locator("table.lineup").count()
+  const totals = await page
+    .locator("table.lineup tfoot tr:nth-child(3) td")
+    .allTextContents()
+  check(tables === 2, `it has both lineups`)
+  check(
+    totals.join() === nets.join(),
+    `its net ratings are the prediction's (${totals.join(", ")})`,
+  )
+  const wide = await page.evaluate(
+    () => document.documentElement.scrollWidth - innerWidth,
+  )
+  check(wide <= 0, `${width}px doesn't scroll sideways (${wide}px over)`)
+  await page.screenshot({ path: `shots/matchup-${width}.png`, fullPage: true })
+  await page.close()
+}
+{
+  const page = await browser.newPage()
+  await page.goto(`${server}matchup?game=0022500001`)
+  await page.waitForSelector("#matchup[data-state=empty]", {
+    state: "attached",
+    timeout: 30_000,
+  })
+  check(true, `a game with no prediction says so`)
+  console.log(`     ${await page.locator("#status").textContent()}`)
   await page.close()
 }
 

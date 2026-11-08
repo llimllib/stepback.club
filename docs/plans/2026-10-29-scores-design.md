@@ -105,6 +105,8 @@ can't be read alone; the page reads the season's few columns and filters.
   played or predicted.
 - `src/scores/predict.ts`: yarapm's predictions for the games not played,
   and what it predicted for the ones played.
+- `src/pages/matchup.astro` and `src/scores/matchup.ts`: a prediction's
+  lineups.
 - `src/scores/render.ts`: plain DOM, a `<table>` per game.
 - `global.css`: the grid and the agate tables. Rules, no boxes.
 

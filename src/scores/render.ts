@@ -226,8 +226,8 @@ const ratingColumns: {
 // A game not played yet. The headline is each team's chance to win, "PHI
 // 39% – 61% BOS", so it can't be read as a result; then the expected score,
 // each team's net rating with its expected lineup and at full strength,
-// and who each is likely without
-export function predictionBlock(p: Prediction) {
+// and who each is likely without; it links to the lineups it rests on
+export function predictionBlock(p: Prediction, base: string) {
   const [a, h] = p.teams
   const fav = a.win > h.win ? a : h
   // the favorite bold, as a box score's winner is
@@ -323,5 +323,10 @@ export function predictionBlock(p: Prediction) {
       el("tbody", {}, row(a, h), row(h, a)),
     ),
     without,
+    el(
+      "a",
+      { className: "more", href: `${base}matchup?game=${p.game_id}` },
+      "Lineups →",
+    ),
   )
 }

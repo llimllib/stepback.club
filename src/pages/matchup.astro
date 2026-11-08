@@ -1,0 +1,107 @@
+---
+import Base from "../layouts/Base.astro"
+---
+
+<Base title="Matchup" description="The players a prediction rests on: each team's projected lineup and ratings">
+  <span class="kicker">Matchup</span>
+  <h1 id="title">&nbsp;</h1>
+  <p id="status" class="note"></p>
+  <div id="matchup" class="matchup"></div>
+</Base>
+
+<script>
+  import { loadingText } from "../kit/mount"
+  import { lineupTable, matchup } from "../scores/matchup"
+
+  const base = import.meta.env.BASE_URL.replace(/\/?$/, "/")
+  const $ = (id: string) => document.getElementById(id)!
+  const [title, status, body] = [$("title"), $("status"), $("matchup")]
+
+  const el = <K extends keyof HTMLElementTagNameMap>(
+    tag: K,
+    props: Partial<HTMLElementTagNameMap[K]> = {},
+    ...children: (Node | string)[]
+  ) => {
+    const e = Object.assign(document.createElement(tag), props)
+    e.append(...children)
+    return e
+  }
+  const day = (d: Date) =>
+    d.toLocaleDateString("en-US", {
+      timeZone: "America/New_York",
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    })
+  const time = (d: Date) =>
+    d.toLocaleTimeString("en-US", {
+      timeZone: "America/New_York",
+      hour: "numeric",
+      minute: "2-digit",
+    })
+  const chance = (v: number) => `${Math.round(v * 100)}%`
+
+  async function show() {
+    const game = new URLSearchParams(location.search).get("game") ?? ""
+    body.innerHTML = loadingText()
+    body.dataset.state = "loading"
+    let m
+    try {
+      m = /^\d{10}$/.test(game) ? await matchup(game) : undefined
+    } catch (e) {
+      console.error(e)
+      title.textContent = "Matchup"
+      body.replaceChildren()
+      status.replaceChildren("Couldn't load the prediction. ")
+      body.dataset.state = "failed"
+      return
+    }
+    if (!m) {
+      title.textContent = "Matchup"
+      body.replaceChildren()
+      status.replaceChildren(
+        "No prediction for this game: it's been played, or its teams aren't set. ",
+        el("a", { href: `${base}scores` }, "Scores →"),
+      )
+      body.dataset.state = "empty"
+      return
+    }
+
+    const p = m.prediction
+    const [a, h] = p.teams
+    const date = p.start.toLocaleDateString("en-CA", {
+      timeZone: "America/New_York",
+    })
+    document.title = `${a.abbrev} at ${h.abbrev} · Matchup · Step Back Club`
+    title.textContent = `${a.name} ${p.neutral ? "vs." : "at"} ${h.name}`
+    const fav = a.win > h.win ? a : h
+    status.replaceChildren(
+      `${day(p.start)} · ${time(p.start)} ET · `,
+      ...[a, h].flatMap((t, i) => {
+        const text = i ? `${chance(t.win)} ${t.abbrev}` : `${t.abbrev} ${chance(t.win)}`
+        return [i ? " – " : "", t === fav ? el("b", {}, text) : text]
+      }),
+      ` · Expected score ${a.abbrev} ${Math.round(a.pts)}, ${h.abbrev} ${Math.round(h.pts)}`,
+    )
+    body.replaceChildren(
+      el(
+        "p",
+        { className: "lede" },
+        "A team's rating is its players' ratings weighted by their expected " +
+          "minutes, less an average team's. Each rating starts from a " +
+          "box-score prior and moves with on-court results; ratings far " +
+          "from their prior, in bold, are what the results say and the box " +
+          `score doesn't. Predicted ${day(new Date(`${p.asOf}T12:00:00Z`))}, ` +
+          "from the games before it.",
+      ),
+      el(
+        "div",
+        { className: "lineups" },
+        ...m.lineups.map(l => lineupTable(l)),
+      ),
+      el("a", { className: "more", href: `${base}scores?date=${date}` }, `← ${day(p.start)}'s games`),
+    )
+    body.dataset.state = "done"
+  }
+  show()
+</script>

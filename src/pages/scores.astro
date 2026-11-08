@@ -157,7 +157,7 @@ import Base from "../layouts/Base.astro"
     grid.replaceChildren(
       ...[
         ...games.map((g, i) => [g.game_id, blocks[i]] as const),
-        ...(predictions ?? []).map(p => [p.game_id, predictionBlock(p)] as const),
+        ...(predictions ?? []).map(p => [p.game_id, predictionBlock(p, base)] as const),
       ]
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([, b]) => b),
