@@ -61,6 +61,9 @@ export interface Lineup {
   // expected minutes, five on the floor. yarapm's is yarapm's own, so it
   // matches the prediction whatever the rounding
   net: Ratings
+  // yarapm's expected points, as shown: whole points, or one decimal when
+  // both teams' round to the same (113.0, 112.7)
+  expected: string
 }
 
 export interface Matchup {
@@ -168,6 +171,7 @@ export async function matchup(game_id: string): Promise<Matchup | undefined> {
     return {
       team,
       players,
+      expected: "",
       net: {
         yarapm: team.net,
         epm: any("epm") ? net("epm") : NaN,
@@ -179,6 +183,10 @@ export async function matchup(game_id: string): Promise<Matchup | undefined> {
     lineup(prediction.teams[0]),
     lineup(prediction.teams[1]),
   ]
+  const [pa, ph] = prediction.teams.map(t => t.pts)
+  const digits = Math.round(pa) === Math.round(ph) ? 1 : 0
+  lineups[0].expected = pa.toFixed(digits)
+  lineups[1].expected = ph.toFixed(digits)
   const epmAsOf = epm.length ? iso(epm[0].as_of_date) : undefined
   return { prediction, lineups, epmAsOf }
 }
@@ -241,7 +249,8 @@ function nameCell(p: LineupPlayer | undefined) {
   return th
 }
 
-// one team's head: its name in its colors and its chance to win
+// one team's head: its name in its colors, its chance to win and yarapm's
+// expected points
 function teamHead(l: Lineup, side: "away" | "home", colSpan: number) {
   const { band, text } = bandColors(l.team.abbrev)
   const th = el("th", { scope: "colgroup", colSpan, className: `team ${side}` })
@@ -269,7 +278,7 @@ function teamHead(l: Lineup, side: "away" | "home", colSpan: number) {
         el(
           "span",
           { className: "tnums" },
-          `${Math.round(l.team.win * 100)}% to win`,
+          `${Math.round(l.team.win * 100)}% to win · expected ${l.expected}`,
         ),
       ),
     ),
@@ -555,7 +564,8 @@ function drawVersus(node: SVGGElement, m: Matchup, width: number) {
       .text(t),
   )
 
-  // each team's band: its color, the name and chance to win, the logo in a
+  // each team's band: its color, the name, chance to win and expected
+  // points, the logo in a
   // newsprint box at the outside edge
   ;[a, h].forEach((l, i) => {
     const { band, text } = bandColors(l.team.abbrev)
@@ -600,7 +610,7 @@ function drawVersus(node: SVGGElement, m: Matchup, width: number) {
       .attr("text-anchor", anchor)
       .call(agate)
       .attr("fill", text)
-      .text(`${Math.round(l.team.win * 100)}% to win`)
+      .text(`${Math.round(l.team.win * 100)}% to win · expected ${l.expected}`)
   })
 
   // column heads

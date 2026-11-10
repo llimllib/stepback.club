@@ -5,7 +5,7 @@ import Base from "../layouts/Base.astro"
 <Base title="Matchup" description="The players a prediction rests on: each team's projected lineup and ratings">
   <span class="kicker">Matchup</span>
   <h1 id="title">&nbsp;</h1>
-  <p id="status" class="note"></p>
+  <p id="status" class="note matchup-status"></p>
   <div id="matchup" class="matchup"></div>
 </Base>
 
@@ -43,7 +43,6 @@ import Base from "../layouts/Base.astro"
       month: "short",
       day: "numeric",
     })
-  const chance = (v: number) => `${Math.round(v * 100)}%`
 
   // The PNG: the table drawn again as SVG in the kit's frame, off screen,
   // exported like a tool's chart
@@ -104,16 +103,9 @@ import Base from "../layouts/Base.astro"
     })
     document.title = `${a.abbrev} at ${h.abbrev} · Matchup · Step Back Club`
     title.textContent = `${a.name} ${p.neutral ? "vs." : "at"} ${h.name}`
-    const fav = a.win > h.win ? a : h
-    // the game's day and time are in the box between the teams' bands
-    status.replaceChildren(
-      "yarapm: ",
-      ...[a, h].flatMap((t, i) => {
-        const text = i ? `${chance(t.win)} ${t.abbrev}` : `${t.abbrev} ${chance(t.win)}`
-        return [i ? " – " : "", t === fav ? el("b", {}, text) : text]
-      }),
-      ` · Expected score ${a.abbrev} ${Math.round(a.pts)}, ${h.abbrev} ${Math.round(h.pts)}`,
-    )
+    // the game's day and time, each team's chance and expected score, are
+    // in the table's head, so the status line is only for failures
+    status.replaceChildren()
     const asOf = day(new Date(`${p.asOf}T12:00:00Z`))
     const link = (href: string, text: string) => el("a", { href }, text)
     const epmAsOf = m.epmAsOf ? `, as of ${day(new Date(`${m.epmAsOf}T12:00:00Z`))}` : ""

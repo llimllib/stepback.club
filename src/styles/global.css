@@ -1327,7 +1327,12 @@ time {
   display: none;
 }
 
-/* export: the button under the status line, and the frame it draws, laid
+/* the status line only says what failed: empty, it takes no room */
+.matchup-status:empty {
+  display: none;
+}
+
+/* export: the button under the title, and the frame it draws, laid
    out off screen so its text can be measured */
 .export-row {
   display: flex;

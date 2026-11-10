@@ -59,17 +59,20 @@ MIN / YARAPM / EPM / NET PTS / TEAM: a key under the table
    more · 6 min"; Bill wanted them shown.)
 5. **Each team's head is its band**: primary color with contrast-picked
    text (`bandColors`), the logo in a newsprint box inset in the band
-   at its outside edge, and the chance to win, which is yarapm's (the
-   status line says so: "yarapm: BOS 63% – 37% PHI"). Under the
-   players, the table's last row, labeled "Team" (not "Total", which
-   promises a plain sum, or "Net", which reads as a subtotal of Net
-   pts), **each team's net rating by all three**: each model's ratings
-   weighted by yarapm's expected minutes, five on the floor, a blank
-   counted as average; yarapm's is yarapm's own `net`. Checked over all
-   30 teams' next games: yarapm's average 0.0, net points' −0.1, EPM's
-   +0.7, against a spread between teams of 5.6 (net points 8.7). EPM is
-   left uncentered. Between the two bands, as in the export, an ink box
-   like a scoreboard's: "AT" ("VS." at a neutral site), the day and the
+   at its outside edge, yarapm's chance to win and expected points:
+   "63% TO WIN · EXPECTED 113", whole points, or one decimal when both
+   teams' round to the same. With those in the bands and the day and
+   time in the box between them, the line under the title, which
+   repeated them, is gone; it only reports failures. Under the players,
+   the table's last row, labeled "Team" (not "Total", which promises a
+   plain sum, or "Net", which reads as a subtotal of Net pts), **each
+   team's net rating by all three**: each model's ratings weighted by
+   yarapm's expected minutes, five on the floor, a blank counted as
+   average; yarapm's is yarapm's own `net`. Checked over all 30 teams'
+   next games: yarapm's average 0.0, net points' −0.1, EPM's +0.7,
+   against a spread between teams of 5.6 (net points 8.7). EPM is left
+   uncentered. Between the two bands, as in the export, an ink box like
+   a scoreboard's: "AT" ("VS." at a neutral site), the day and the
    time. In the table it's the head's middle cell, over the middle
    rule; on a phone it's a bar between the two teams' tables.
 6. **No generated text.** A lede built from the numbers (the gap by box
@@ -81,7 +84,7 @@ MIN / YARAPM / EPM / NET PTS / TEAM: a key under the table
    rating in plain words, with links to yarapm and dunksandthrees.
 8. **Phones** (under 760px) get one table a team, the away team's first:
    both sides' eight number columns don't fit beside names.
-9. **Export PNG**, a button under the status line: the table drawn again
+9. **Export PNG**, a button under the title: the table drawn again
    as SVG (`matchupFrame`), off screen, and exported with `toPng` like a
    tool's chart. No band or legend strip, which repeated the team bands
    (Bill): `buildBareFrame` in `kit/frame.ts` is the body and the footer
