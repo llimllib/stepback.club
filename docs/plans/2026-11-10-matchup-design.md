@@ -68,7 +68,10 @@ MIN / YARAPM / EPM / NET PTS / TEAM: a key under the table
    counted as average; yarapm's is yarapm's own `net`. Checked over all
    30 teams' next games: yarapm's average 0.0, net points' −0.1, EPM's
    +0.7, against a spread between teams of 5.6 (net points 8.7). EPM is
-   left uncentered.
+   left uncentered. Between the two bands, as in the export, an ink box
+   like a scoreboard's: "AT" ("VS." at a neutral site), the day and the
+   time. In the table it's the head's middle cell, over the middle
+   rule; on a phone it's a bar between the two teams' tables.
 6. **No generated text.** A lede built from the numbers (the gap by box
    score against the gap with results, the game's best players, the
    player furthest from his box score) was tried and taken out: it

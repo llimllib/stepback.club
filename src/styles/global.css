@@ -1153,8 +1153,53 @@ time {
   padding: 0;
 }
 
-.versus .team.home {
+/* the box between the teams, like a scoreboard's: "at", the day and the
+   time, in ink. A seam of newsprint each side of it in the table */
+.matchup .at {
+  background: var(--ink);
+  color: var(--paper);
+  text-align: center;
+  vertical-align: middle;
+  padding: 0.3rem 0.2rem;
+  font-family: var(--agate);
+  font-weight: 400;
+}
+
+.versus .at {
   border-left: 3px solid var(--paper);
+  border-right: 3px solid var(--paper);
+}
+
+.matchup .at-word {
+  display: block;
+  font-family: var(--head);
+  font-weight: 700;
+  font-size: 1.2rem;
+  line-height: 1;
+  text-transform: uppercase;
+  margin-bottom: 0.15rem;
+}
+
+.matchup .at-when {
+  display: block;
+  font-size: 0.65rem;
+  line-height: 1.35;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* between a phone's two tables, a bar: "at" and the time on one line */
+.matchup .at-bar {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin: 1.5rem 0;
+  padding: 0.4rem;
+}
+
+.matchup .at-bar .at-word {
+  margin: 0;
 }
 
 /* the band surrounds the logo box on every side, so the box sits inside the
@@ -1280,10 +1325,6 @@ time {
 
 .matchup .stacked {
   display: none;
-}
-
-.lineup + .lineup {
-  margin-top: 1.5rem;
 }
 
 /* export: the button under the status line, and the frame it draws, laid

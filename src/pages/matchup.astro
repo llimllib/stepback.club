@@ -14,6 +14,7 @@ import Base from "../layouts/Base.astro"
   import { fontsReady } from "../kit/frame"
   import { loadingText } from "../kit/mount"
   import {
+    atBar,
     matchup,
     matchupFrame,
     matchupTable,
@@ -41,12 +42,6 @@ import Base from "../layouts/Base.astro"
       weekday: "short",
       month: "short",
       day: "numeric",
-    })
-  const time = (d: Date) =>
-    d.toLocaleTimeString("en-US", {
-      timeZone: "America/New_York",
-      hour: "numeric",
-      minute: "2-digit",
     })
   const chance = (v: number) => `${Math.round(v * 100)}%`
 
@@ -110,8 +105,9 @@ import Base from "../layouts/Base.astro"
     document.title = `${a.abbrev} at ${h.abbrev} · Matchup · Step Back Club`
     title.textContent = `${a.name} ${p.neutral ? "vs." : "at"} ${h.name}`
     const fav = a.win > h.win ? a : h
+    // the game's day and time are in the box between the teams' bands
     status.replaceChildren(
-      `${day(p.start)} · ${time(p.start)} ET · yarapm: `,
+      "yarapm: ",
       ...[a, h].flatMap((t, i) => {
         const text = i ? `${chance(t.win)} ${t.abbrev}` : `${t.abbrev} ${chance(t.win)}`
         return [i ? " – " : "", t === fav ? el("b", {}, text) : text]
@@ -128,6 +124,7 @@ import Base from "../layouts/Base.astro"
         "div",
         { className: "stacked" },
         teamTable(m.lineups[0], "away"),
+        atBar(p),
         teamTable(m.lineups[1], "home"),
       ),
       // what the columns mean, set off from the table so its labels don't

@@ -277,6 +277,25 @@ function teamHead(l: Lineup, side: "away" | "home", colSpan: number) {
   return th
 }
 
+// The box between the teams, like a scoreboard's: "at" ("vs." at a neutral
+// site), the day and the time, in ink. The export draws the same
+function atBox(p: Prediction) {
+  const { day, time } = gameTime(p)
+  return [
+    el("span", { className: "at-word" }, p.neutral ? "vs." : "at"),
+    el("span", { className: "at-when" }, day),
+    el("span", { className: "at-when" }, time),
+  ]
+}
+
+// in the mirrored table, the head's middle cell, over the middle rule
+const atCell = (p: Prediction) =>
+  el("th", { scope: "col", colSpan: 2, className: "at" }, ...atBox(p))
+
+// between a phone's two tables
+export const atBar = (p: Prediction) =>
+  el("div", { className: "at at-bar" }, ...atBox(p))
+
 const minTitle = "Expected minutes, counting the chance he doesn't play"
 
 // a side's column heads, in the same order on both sides
@@ -312,7 +331,13 @@ export function matchupTable(m: Matchup) {
   const head = el(
     "thead",
     {},
-    el("tr", {}, teamHead(a, "away", 5), teamHead(h, "home", 5)),
+    el(
+      "tr",
+      {},
+      teamHead(a, "away", 4),
+      atCell(m.prediction),
+      teamHead(h, "home", 4),
+    ),
     el(
       "tr",
       { className: "cols" },
