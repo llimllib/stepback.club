@@ -10,8 +10,17 @@ import Base from "../layouts/Base.astro"
 </Base>
 
 <script>
+  import { download, toPng } from "../kit/export"
+  import { fontsReady } from "../kit/frame"
   import { loadingText } from "../kit/mount"
-  import { lineupTable, matchup } from "../scores/matchup"
+  import {
+    matchup,
+    matchupFrame,
+    matchupTable,
+    NET_PTS_MIN_POSS,
+    teamTable,
+    type Matchup,
+  } from "../scores/matchup"
 
   const base = import.meta.env.BASE_URL.replace(/\/?$/, "/")
   const $ = (id: string) => document.getElementById(id)!
@@ -40,6 +49,32 @@ import Base from "../layouts/Base.astro"
       minute: "2-digit",
     })
   const chance = (v: number) => `${Math.round(v * 100)}%`
+
+  // The PNG: the table drawn again as SVG in the kit's frame, off screen,
+  // exported like a tool's chart
+  async function exportPng(m: Matchup, button: HTMLButtonElement, note: HTMLElement) {
+    button.disabled = true
+    note.textContent = "Exporting…"
+    const holder = el("div", { className: "offscreen" })
+    document.body.append(holder)
+    try {
+      await fontsReady()
+      const frame = matchupFrame(holder, m)
+      const { blob, missingImages } = await toPng(frame.svg, new URL(base, location.href).href)
+      const [a, h] = m.prediction.teams
+      const date = m.prediction.start.toLocaleDateString("en-CA", { timeZone: "America/New_York" })
+      download(blob, `${a.abbrev}-at-${h.abbrev}-${date}.png`.toLowerCase())
+      note.textContent = missingImages
+        ? `Exported, but ${missingImages} images couldn't be embedded (no CORS)`
+        : ""
+    } catch (e) {
+      console.error(e)
+      note.textContent = "Couldn't export"
+    } finally {
+      holder.remove()
+      button.disabled = false
+    }
+  }
 
   async function show() {
     const game = new URLSearchParams(location.search).get("game") ?? ""
@@ -76,31 +111,70 @@ import Base from "../layouts/Base.astro"
     title.textContent = `${a.name} ${p.neutral ? "vs." : "at"} ${h.name}`
     const fav = a.win > h.win ? a : h
     status.replaceChildren(
-      `${day(p.start)} · ${time(p.start)} ET · `,
+      `${day(p.start)} · ${time(p.start)} ET · yarapm: `,
       ...[a, h].flatMap((t, i) => {
         const text = i ? `${chance(t.win)} ${t.abbrev}` : `${t.abbrev} ${chance(t.win)}`
         return [i ? " – " : "", t === fav ? el("b", {}, text) : text]
       }),
       ` · Expected score ${a.abbrev} ${Math.round(a.pts)}, ${h.abbrev} ${Math.round(h.pts)}`,
     )
+    const asOf = day(new Date(`${p.asOf}T12:00:00Z`))
+    const link = (href: string, text: string) => el("a", { href }, text)
+    const epmAsOf = m.epmAsOf ? `, as of ${day(new Date(`${m.epmAsOf}T12:00:00Z`))}` : ""
     body.replaceChildren(
-      el(
-        "p",
-        { className: "lede" },
-        "A team's rating is its players' ratings weighted by their expected " +
-          "minutes, less an average team's. Each rating starts from a " +
-          "box-score prior and moves with on-court results; ratings far " +
-          "from their prior, in bold, are what the results say and the box " +
-          `score doesn't. Predicted ${day(new Date(`${p.asOf}T12:00:00Z`))}, ` +
-          "from the games before it.",
-      ),
+      matchupTable(m),
+      // a phone gets one team's table at a time
       el(
         "div",
-        { className: "lineups" },
-        ...m.lineups.map(l => lineupTable(l)),
+        { className: "stacked" },
+        teamTable(m.lineups[0], "away"),
+        teamTable(m.lineups[1], "home"),
+      ),
+      // what the columns mean, set off from the table so its labels don't
+      // read as more rows
+      el("h2", { className: "kicker key-head" }, "Key"),
+      el(
+        "dl",
+        { className: "key" },
+        el("dt", {}, "Min"),
+        el("dd", {}, "Expected minutes, counting the chance they don't play"),
+        el("dt", {}, "yarapm"),
+        el(
+          "dd",
+          {},
+          "Points per 100 possessions better than an average player by ",
+          link("https://github.com/llimllib/yarapm/", "yarapm"),
+          `, as of ${asOf}`,
+        ),
+        el("dt", {}, "EPM"),
+        el(
+          "dd",
+          {},
+            "Points per 100 possessions better than an average player by ",
+          link("https://dunksandthrees.com/epm", "dunksandthrees"),
+          `' predictive EPM${epmAsOf}`,
+        ),
+        el("dt", {}, "Net pts"),
+        el(
+          "dd",
+          {},
+          link("https://espnanalytics.com/", "ESPN Analytics"),
+          "' net points per 100 possessions this season. Blank under " +
+            `${NET_PTS_MIN_POSS} possessions`,
+        ),
+        el("dt", {}, "Team"),
+        el(
+          "dd",
+          {},
+            "Player ratings weighted by minutes, a blank counts as average",
+        ),
       ),
       el("a", { className: "more", href: `${base}scores?date=${date}` }, `← ${day(p.start)}'s games`),
     )
+    const note = el("span", { className: "export-note", role: "status" })
+    const button = el("button", { type: "button", className: "export" }, "Export PNG")
+    button.addEventListener("click", () => exportPng(m, button, note))
+    status.after(el("div", { className: "export-row" }, button, note))
     body.dataset.state = "done"
   }
   show()

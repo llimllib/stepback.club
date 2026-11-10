@@ -5,6 +5,8 @@
   --ink: #141414;
   --muted: #5c5a55;
   --voice: #e8471c;
+  --pos: #2166ac;
+  --neg: #b2182b;
   --head: "Barlow Condensed", "Arial Narrow", sans-serif;
   --agate: "JetBrains Mono", ui-monospace, monospace;
   --serif: "Source Serif 4", Georgia, serif;
@@ -1111,85 +1113,296 @@ time {
   }
 }
 
-/* --- the matchup page: both teams' lineups side by side, as agate tables */
-.matchup .lede {
-  max-width: 44rem;
-}
-
-.lineups {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0 2.5rem;
-  border-top: 3px solid var(--ink);
-  padding-top: 0.6rem;
-  margin-bottom: 1rem;
-}
-
-.lineup {
+/* --- the matchup page: both lineups in one agate table, mirrored, each row
+   a pair of players at the same place in their rotations, each player with
+   three ratings. A phone gets one team's table, then the other's
+   (.lineup). Rules shared by both are on :is(.versus, .lineup) */
+:is(.versus, .lineup) {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
+  border-bottom: var(--rule);
   font-family: var(--agate);
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
+  margin-bottom: 0.6rem;
 }
 
-.lineup th,
-.lineup td {
-  padding: 0.15rem 0 0.15rem 0.6rem;
-  text-align: right;
+.versus {
+  max-width: 64rem;
+}
+
+:is(.versus, .lineup) col.min {
+  width: 2.4rem;
+}
+
+:is(.versus, .lineup) col.num {
+  width: 4.2rem;
+}
+
+:is(.versus, .lineup) th,
+:is(.versus, .lineup) td {
+  padding: 0.2rem 0.3rem;
   font-weight: 400;
-  white-space: nowrap;
 }
 
-.lineup th[scope="row"],
-.lineup thead th:first-child {
-  padding-left: 0;
+/* each team's head: its name in its colors, like a chart's band, with its
+   logo in a newsprint box at the outside edge */
+:is(.versus, .lineup) .team {
+  padding: 0;
+}
+
+.versus .team.home {
+  border-left: 3px solid var(--paper);
+}
+
+/* the band surrounds the logo box on every side, so the box sits inside the
+   team's color rather than opening onto the page */
+:is(.versus, .lineup) .band {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 6px;
   text-align: left;
 }
 
-/* a long name wraps, so a phone doesn't scroll sideways: Kentavious
-   Caldwell-Pope */
-.lineup tbody th[scope="row"] {
-  white-space: normal;
+.versus .home .band {
+  flex-direction: row-reverse;
+  text-align: right;
 }
 
-.lineup thead th {
+:is(.versus, .lineup) .logo {
+  flex: none;
+  background: var(--paper);
+  padding: 4px;
+  line-height: 0;
+}
+
+:is(.versus, .lineup) .who {
+  padding: 0.1rem 0;
+  min-width: 0;
+}
+
+:is(.versus, .lineup) .tname {
+  display: block;
+  font-family: var(--head);
+  font-weight: 700;
+  font-size: 1.5rem;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+:is(.versus, .lineup) .tname.short {
+  display: none;
+}
+
+:is(.versus, .lineup) .tnums {
+  text-transform: uppercase;
+  font-size: 0.75rem;
+}
+
+:is(.versus, .lineup) .cols th {
   color: var(--muted);
+  text-transform: uppercase;
+  font-size: 0.68rem;
   border-bottom: var(--rule);
+  text-align: right;
   cursor: help;
 }
 
-.lineup thead th:first-child {
-  color: var(--ink);
-  font-weight: 700;
-  cursor: default;
+:is(.versus, .lineup) .cols td {
+  border-bottom: var(--rule);
 }
 
-.lineup td b {
-  font-weight: 800;
+:is(.versus, .lineup) .name {
+  text-align: left;
+  padding-left: 0;
 }
 
-/* the sum: a rule above, the net rating bold */
-.lineup tfoot tr:first-child > * {
-  border-top: var(--rule);
+.versus :is(tbody, tfoot) tr > .name:last-child {
+  text-align: right;
+  padding-right: 0;
+  padding-left: 0.4rem;
 }
 
-.lineup tfoot tr:nth-child(3) > * {
-  font-weight: 700;
+:is(.versus, .lineup) .name small {
+  color: var(--muted);
+  font-size: 0.7rem;
+  white-space: nowrap;
 }
 
-.lineup tfoot tr:last-child > * {
+:is(.versus, .lineup) .min {
+  text-align: right;
   color: var(--muted);
 }
 
-@media (max-width: 900px) {
-  .lineups {
-    grid-template-columns: minmax(0, 1fr);
+/* a rating: signed, blue or red, so the sign reads in grayscale */
+:is(.versus, .lineup) .num {
+  text-align: right;
+  color: var(--muted);
+}
+
+:is(.versus, .lineup) .num.pos {
+  color: var(--pos);
+}
+
+:is(.versus, .lineup) .num.neg {
+  color: var(--neg);
+}
+
+/* the middle: a rule between the teams */
+.versus .mid {
+  border-left: var(--rule);
+}
+
+/* each team's net rating by the three, under its players: bold, a rule
+   above it */
+:is(.versus, .lineup) .net > * {
+  font-weight: 700;
+  border-top: var(--rule);
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+
+:is(.versus, .lineup) .net .name {
+  font-family: var(--head);
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+/* a small gap between the starters and the bench */
+:is(.versus, .lineup) tr.bench > * {
+  padding-top: 0.75rem;
+}
+
+.matchup .stacked {
+  display: none;
+}
+
+.lineup + .lineup {
+  margin-top: 1.5rem;
+}
+
+/* export: the button under the status line, and the frame it draws, laid
+   out off screen so its text can be measured */
+.export-row {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin: 0 0 1rem;
+  font-family: var(--agate);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.export-row .export {
+  padding: 0.4rem 0.8rem;
+  border: var(--rule);
+  border-radius: 0;
+  background: var(--ink);
+  color: var(--paper);
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.export-row .export:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.offscreen {
+  position: absolute;
+  left: -10000px;
+  top: 0;
+}
+
+/* what the columns mean, in agate under the table */
+.matchup .key {
+  display: grid;
+  /* definitions run the table's width */
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.2rem 0.8rem;
+  margin: 0 0 1.2rem;
+  font-size: 0.85rem;
+}
+
+/* the key's heading: well clear of the table, a rule under it. The key
+   is as wide as the table, so their right edges line up */
+.matchup .key-head,
+.matchup .key {
+  max-width: 64rem;
+}
+
+.matchup .key-head {
+  margin: 2.2rem 0 0.6rem;
+  padding-bottom: 0.3rem;
+  border-bottom: var(--rule);
+  font-weight: 400;
+}
+
+.matchup .key dt {
+  font-family: var(--agate);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  padding-top: 0.2rem;
+}
+
+.matchup .key dd {
+  margin: 0;
+  color: var(--muted);
+}
+
+/* narrower than both sides fit: one team's table, then the other's */
+@media (max-width: 760px) {
+  .matchup .versus {
+    display: none;
   }
 
-  .lineup + .lineup {
-    margin-top: 1.25rem;
+  .matchup .stacked {
+    display: block;
+  }
+
+  .lineup {
+    font-size: 0.72rem;
+    letter-spacing: 0;
+  }
+
+  .lineup col.num {
+    width: 2.9rem;
+  }
+
+  .lineup col.min {
+    width: 1.8rem;
+  }
+
+  .lineup .cols th {
+    font-size: 0.6rem;
+    white-space: nowrap;
+    padding-left: 0;
+  }
+
+  .lineup .tname {
+    font-size: 1.25rem;
+  }
+
+  .lineup .logo img {
+    width: 30px;
+    height: 30px;
+  }
+
+  .matchup .key {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .matchup .key dd {
+    margin-bottom: 0.5rem;
   }
 }
 
