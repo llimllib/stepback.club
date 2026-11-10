@@ -15,6 +15,7 @@ import Base from "../layouts/Base.astro"
   import { loadingText } from "../kit/mount"
   import {
     atBar,
+    factorsSection,
     matchup,
     matchupFrame,
     matchupTable,
@@ -119,9 +120,11 @@ import Base from "../layouts/Base.astro"
         atBar(p),
         teamTable(m.lineups[1], "home"),
       ),
-      // what the columns mean, set off from the table so its labels don't
+      // each team's offense against the other's defense
+      ...factorsSection(m),
+      // what the columns mean, set off from the tables so its labels don't
       // read as more rows
-      el("h2", { className: "kicker key-head" }, "Key"),
+      el("h2", { className: "kicker key-head section-head" }, "Key"),
       el(
         "dl",
         { className: "key" },
@@ -157,6 +160,14 @@ import Base from "../layouts/Base.astro"
           {},
             "Player ratings weighted by minutes, a blank counts as average",
         ),
+        // the four factors' rows, one each
+        ...[
+          ["Rating", "Points per 100 possessions"],
+          ["eFG%", "Field goal percentage, with threes worth 1.5"],
+          ["Turnovers", "Per 100 possessions"],
+          ["Off. reb.", "The share of its own misses a team gets back"],
+          ["FT rate", "Free throws made per field goal attempt"],
+        ].flatMap(([term, def]) => [el("dt", {}, term), el("dd", {}, def)]),
       ),
       el("a", { className: "more", href: `${base}scores?date=${date}` }, `← ${day(p.start)}'s games`),
     )

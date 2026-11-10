@@ -7,6 +7,13 @@ import { read, readWhere } from "../kit/data"
 import { select } from "d3"
 import { agate, bandColors, buildBareFrame, logoUrl } from "../kit/frame"
 import { color, font, SITE } from "../kit/theme"
+import {
+  factors as factorList,
+  ordinal,
+  seasonFactors,
+  type Factors,
+  type Side,
+} from "./factors"
 import { iso } from "./load"
 import {
   predictionFor,
@@ -71,6 +78,8 @@ export interface Matchup {
   lineups: [Lineup, Lineup]
   // the day of the EPM it shows, if any
   epmAsOf?: string
+  // every team's four factors this season, if the logs could be read
+  factors?: Factors
 }
 
 // Net points per 100 is noise on a few games' possessions (Rupert, +45 on
@@ -86,7 +95,7 @@ export async function matchup(game_id: string): Promise<Matchup | undefined> {
   // a player on a roster may not have played this season yet, so last
   // season's names fill in. EPM and net points are other sources, so a
   // missing file leaves their columns blank rather than failing the page
-  const [minutes, names, lastNames, epm, netPts] = await Promise.all([
+  const [minutes, names, lastNames, epm, netPts, factors] = await Promise.all([
     read("yarapm", "minutes", season, [
       "game_id",
       "team_id",
@@ -111,6 +120,7 @@ export async function matchup(game_id: string): Promise<Matchup | undefined> {
       "o_team_poss",
       "d_team_poss",
     ]).catch(() => []),
+    seasonFactors(season).catch(() => undefined),
   ])
   const rows = minutes.filter(r => r.game_id === game_id && r.min > 0)
   // the build's day's ratings: the file is sorted by player, so only these
@@ -188,7 +198,7 @@ export async function matchup(game_id: string): Promise<Matchup | undefined> {
   lineups[0].expected = pa.toFixed(digits)
   lineups[1].expected = ph.toFixed(digits)
   const epmAsOf = epm.length ? iso(epm[0].as_of_date) : undefined
-  return { prediction, lineups, epmAsOf }
+  return { prediction, lineups, epmAsOf, factors }
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -249,8 +259,13 @@ function nameCell(p: LineupPlayer | undefined) {
   return th
 }
 
-// one team's head: its name in its colors, its chance to win and yarapm's
-// expected points
+// a band's subhead: the team's record going in, its chance to win and
+// yarapm's expected points
+const subhead = (l: Lineup) =>
+  `${l.team.wins}-${l.team.losses} · ${Math.round(l.team.win * 100)}% to win · expected ${l.expected}`
+
+// one team's head: its name in its colors, and under it its record, its
+// chance to win and yarapm's expected points
 function teamHead(l: Lineup, side: "away" | "home", colSpan: number) {
   const { band, text } = bandColors(l.team.abbrev)
   const th = el("th", { scope: "colgroup", colSpan, className: `team ${side}` })
@@ -275,11 +290,7 @@ function teamHead(l: Lineup, side: "away" | "home", colSpan: number) {
         { className: "who" },
         el("span", { className: "tname full" }, l.team.name),
         el("span", { className: "tname short" }, nickname(l.team.name)),
-        el(
-          "span",
-          { className: "tnums" },
-          `${Math.round(l.team.win * 100)}% to win · expected ${l.expected}`,
-        ),
+        el("span", { className: "tnums" }, subhead(l)),
       ),
     ),
   )
@@ -594,7 +605,8 @@ function drawVersus(node: SVGGElement, m: Matchup, width: number) {
       .attr("height", box - 8)
     const tx = i ? x0 + w - inset - box - 10 : x0 + inset + box + 10
     const anchor = i ? "end" : "start"
-    g.append("text")
+    const name = g
+      .append("text")
       .attr("x", tx)
       .attr("y", 25)
       .attr("text-anchor", anchor)
@@ -604,13 +616,24 @@ function drawVersus(node: SVGGElement, m: Matchup, width: number) {
       .attr("fill", text)
       .style("text-transform", "uppercase")
       .text(l.team.name)
-    g.append("text")
+    const sub = g
+      .append("text")
       .attr("x", tx)
       .attr("y", 42)
       .attr("text-anchor", anchor)
       .call(agate)
       .attr("fill", text)
-      .text(`${Math.round(l.team.win * 100)}% to win · expected ${l.expected}`)
+      .text(subhead(l))
+    // a long name or subhead shrinks to fit beside the logo (Minnesota
+    // Timberwolves), since SVG text doesn't wrap
+    const room = w - inset - box - 20
+    for (const [t, size] of [
+      [name, 24],
+      [sub, 11],
+    ] as const) {
+      const len = t.node()!.getComputedTextLength()
+      if (len > room) t.attr("font-size", (size * room) / len)
+    }
   })
 
   // column heads
@@ -733,4 +756,88 @@ function drawVersus(node: SVGGElement, m: Matchup, width: number) {
   side(h, 1)
 
   return { height: bottom + 4 }
+}
+
+// --- the four factors, by possession: one team's offense against the
+// other's defense, each value with its rank among the 30 teams
+
+// one possession's table: "When the Celtics have the ball", the offense's
+// values and ranks, then the defense's
+function possessionTable(
+  off: Lineup,
+  def: Lineup,
+  f: Factors,
+): HTMLElement | undefined {
+  const o = f.teams.get(off.team.team_id)
+  const d = f.teams.get(def.team.team_id)
+  if (!o || !d) return undefined
+  const cell = (
+    side: "offense" | "defense",
+    s: Side,
+    rank: Side,
+    key: (typeof factorList)[number],
+  ) => {
+    const v = s[key.key]
+    const avg = f.league[key.key]
+    // better than the league on this side of the ball: blue; worse: red
+    const better = (side === "offense") === key.higher ? v > avg : v < avg
+    return [
+      el("td", { className: `num ${better ? "pos" : "neg"}` }, key.fmt(v)),
+      el("td", { className: "rank" }, ordinal(rank[key.key])),
+    ]
+  }
+  return el(
+    "table",
+    { className: "factors" },
+    el(
+      "caption",
+      {},
+      `When the ${nickname(off.team.name)} ${off.team.name.endsWith("s") ? "have" : "has"} the ball`,
+    ),
+    el(
+      "thead",
+      {},
+      el(
+        "tr",
+        {},
+        el("td"),
+        el(
+          "th",
+          { scope: "colgroup", colSpan: 2 },
+          `${nickname(off.team.name)} offense`,
+        ),
+        el(
+          "th",
+          { scope: "colgroup", colSpan: 2 },
+          `${nickname(def.team.name)} defense`,
+        ),
+      ),
+    ),
+    el(
+      "tbody",
+      {},
+      ...factorList.map(k =>
+        el(
+          "tr",
+          {},
+          el("th", { scope: "row", title: k.title }, k.label),
+          ...cell("offense", o.offense, o.rank.offense, k),
+          ...cell("defense", d.defense, d.rank.defense, k),
+        ),
+      ),
+    ),
+  )
+}
+
+// Both possessions side by side, under a heading. Nothing if the logs couldn't be read or a team hasn't played
+export function factorsSection(m: Matchup): HTMLElement[] {
+  const f = m.factors
+  if (!f) return []
+  const [a, h] = m.lineups
+  const tables = [possessionTable(a, h, f), possessionTable(h, a, f)]
+  if (tables.some(t => !t)) return []
+  return [
+    el("h2", { className: "kicker section-head" }, "Four factors"),
+    el("div", { className: "possessions" }, ...(tables as HTMLElement[])),
+  ]
 }

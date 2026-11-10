@@ -1378,17 +1378,96 @@ time {
   font-size: 0.85rem;
 }
 
-/* the key's heading: well clear of the table, a rule under it. The key
-   is as wide as the table, so their right edges line up */
-.matchup .key-head,
-.matchup .key {
+/* a section's heading (the four factors, the key): well clear of what's
+   above it, a rule under it. Each section is as wide as the player table,
+   so their right edges line up */
+.matchup .section-head,
+.matchup .key,
+.matchup .possessions {
   max-width: 64rem;
 }
 
-.matchup .key-head {
+.matchup .section-head {
   margin: 2.2rem 0 0.6rem;
   padding-bottom: 0.3rem;
   border-bottom: var(--rule);
+  font-weight: 400;
+}
+
+/* the four factors: two tables, one for each team's possessions */
+.matchup .possessions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem 2.5rem;
+}
+
+.factors {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--agate);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.factors caption {
+  text-align: left;
+  font-family: var(--head);
+  font-weight: 700;
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  padding-bottom: 0.2rem;
+}
+
+.factors th,
+.factors td {
+  padding: 0.2rem 0.4rem;
+  font-weight: 400;
+  text-align: right;
+}
+
+.factors thead th {
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  border-bottom: var(--rule);
+}
+
+.factors thead td {
+  border-bottom: var(--rule);
+}
+
+.factors tbody th {
+  text-align: left;
+  padding-left: 0;
+  cursor: help;
+}
+
+/* the defense's columns, behind a rule */
+.factors thead th + th,
+.factors tbody td:nth-of-type(3) {
+  border-left: var(--rule);
+}
+
+.factors .num.pos {
+  color: var(--pos);
+}
+
+.factors .num.neg {
+  color: var(--neg);
+}
+
+.factors .rank {
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-align: left;
+  padding-left: 0.1rem;
+}
+
+.factors tbody tr:first-child > * {
+  font-weight: 700;
+}
+
+.factors tbody tr:first-child .rank {
   font-weight: 400;
 }
 
@@ -1406,6 +1485,10 @@ time {
 
 /* narrower than both sides fit: one team's table, then the other's */
 @media (max-width: 760px) {
+  .matchup .possessions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .matchup .versus {
     display: none;
   }

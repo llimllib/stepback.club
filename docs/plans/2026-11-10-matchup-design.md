@@ -98,6 +98,26 @@ MIN / YARAPM / EPM / NET PTS / TEAM: a key under the table
    `billmill.org/nba/matchup` is on its right. One size (Fit), no
    annotations.
 
+10. **Each team's record going in** leads its band's subhead: "8-2 · 63%
+    TO WIN · EXPECTED 113", on the page and in the export. (After the
+    name in the title it was too bold.) In the export a long name or
+    subhead shrinks to fit beside the logo (Minnesota Timberwolves),
+    since SVG text doesn't wrap.
+11. **Four factors, by possession** (Bill: a team comparison; a table
+    first, as a chart is a project): under the player table, a section
+    headed "Four factors", with two tables, "When the Celtics have the
+    ball" (the Celtics' offense against the 76ers' defense) and "When
+    the 76ers have the ball". Rows are rating, eFG%, turnovers per 100
+    possessions, offensive rebound % and FT rate (free throws made per
+    field goal attempt, as in Team charts); a defense's are its
+    opponents'. Each value has its rank among the 30 teams, 1st best
+    on that side of the ball, and is blue or red, better or worse than
+    the league's average from its totals. This regular season, from
+    the NBA's team game logs (`src/scores/factors.ts`); left out if
+    they can't be read or a team hasn't played. The key explains each
+    row, one entry each. Not in the export. A chart (each factor a
+    strip of 30 teams with the two marked) is the idea for later.
+
 ## Not done
 
-Charts under the table: Bill suggested them as a possible addition.
+A four factors chart; the four factors in the export.
