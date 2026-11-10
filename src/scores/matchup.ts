@@ -5,13 +5,7 @@
 // docs/plans/2026-11-10-matchup-design.md
 import { read, readWhere } from "../kit/data"
 import { select } from "d3"
-import {
-  agate,
-  bandColors,
-  buildFrame,
-  logoUrl,
-  type Frame,
-} from "../kit/frame"
+import { agate, bandColors, buildBareFrame, logoUrl } from "../kit/frame"
 import { color, font, SITE } from "../kit/theme"
 import { iso } from "./load"
 import {
@@ -433,37 +427,38 @@ export function teamTable(l: Lineup, side: "away" | "home") {
 // --- the export: the same table drawn as SVG in the kit's frame, which is
 // what a PNG is made from
 
-// An ink band, since the image is about two teams: "Celtics at 76ers", the
-// time and the expected score. The team bands are in the body
-export function matchupFrame(container: HTMLElement, m: Matchup): Frame {
-  const p = m.prediction
-  const [a, h] = p.teams
-  const when = p.start.toLocaleString("en-US", {
-    timeZone: "America/New_York",
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  })
-  return buildFrame(
-    container,
-    "auto",
-    {
-      title: `${nickname(a.name)} ${p.neutral ? "vs." : "at"} ${nickname(h.name)}`,
-      context:
-        `${when} ET. yarapm's expected score: ${a.abbrev} ${Math.round(a.pts)}, ` +
-        `${h.abbrev} ${Math.round(h.pts)}. Each player by three ratings`,
-      legend: [
-        { symbol: "bar", color: color.pos, text: "Better than average" },
-        { symbol: "bar", color: color.neg, text: "Worse" },
-      ],
-      counts: "Points per 100 possessions",
-      source: "Data: yarapm · dunksandthrees · ESPN Analytics",
-    },
-    `${SITE}/matchup`,
-    (g, size) => drawVersus(g, m, size.width),
+// The table alone, under its own team bands, and the footer: no band or
+// legend strip, which would repeat the bands. The date the ratings are from
+// leads the footer, since they change every day
+export function matchupFrame(container: HTMLElement, m: Matchup) {
+  const asOf = new Date(`${m.prediction.asOf}T12:00:00Z`).toLocaleDateString(
+    "en-US",
+    { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" },
   )
+  return buildBareFrame(
+    container,
+    `As of ${asOf} · Data: yarapm · dunksandthrees · ESPN Analytics`,
+    `${SITE}/matchup`,
+    (g, width) => drawVersus(g, m, width),
+  )
+}
+
+// the game's start, in US Eastern: "Tue, Nov 10" and "8:00 PM ET"
+function gameTime(p: Prediction) {
+  const tz = "America/New_York"
+  return {
+    day: p.start.toLocaleDateString("en-US", {
+      timeZone: tz,
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    }),
+    time: `${p.start.toLocaleTimeString("en-US", {
+      timeZone: tz,
+      hour: "numeric",
+      minute: "2-digit",
+    })} ET`,
+  }
 }
 
 const valueColor = (v: number) =>
@@ -473,6 +468,8 @@ const valueColor = (v: number) =>
 // pair of players, with a gap before the bench, and each team's net ratings
 function drawVersus(node: SVGGElement, m: Matchup, width: number) {
   const g = select(node)
+  const game = m.prediction
+  const { day, time } = gameTime(game)
   const [a, h] = m.lineups
   const mid = width / 2
   const gap = 8
@@ -500,12 +497,45 @@ function drawVersus(node: SVGGElement, m: Matchup, width: number) {
         }
   }
 
+  // the box between the bands, like a scoreboard's: "at" ("vs." at a
+  // neutral site), the day and the time, in ink
+  const boxW = 92
+  const seam = 3
+  const boxX = mid - boxW / 2
+  g.append("rect")
+    .attr("x", boxX)
+    .attr("width", boxW)
+    .attr("height", bandH)
+    .attr("fill", color.ink)
+  g.append("text")
+    .attr("x", mid)
+    .attr("y", 21)
+    .attr("text-anchor", "middle")
+    .attr("font-family", font.head)
+    .attr("font-weight", 700)
+    .attr("font-size", 18)
+    .attr("fill", color.bg)
+    .style("text-transform", "uppercase")
+    .text(game.neutral ? "vs." : "at")
+  ;[day, time].forEach((t, k) =>
+    g
+      .append("text")
+      .attr("x", mid)
+      .attr("y", 34 + k * 11)
+      .attr("text-anchor", "middle")
+      .call(agate)
+      .attr("font-size", 9.5)
+      .attr("letter-spacing", "0.02em")
+      .attr("fill", color.bg)
+      .text(t),
+  )
+
   // each team's band: its color, the name and chance to win, the logo in a
   // newsprint box at the outside edge
   ;[a, h].forEach((l, i) => {
     const { band, text } = bandColors(l.team.abbrev)
-    const x0 = i ? mid + 2 : 0
-    const w = mid - 2
+    const x0 = i ? mid + boxW / 2 + seam : 0
+    const w = mid - boxW / 2 - seam
     g.append("rect")
       .attr("x", x0)
       .attr("width", w)
@@ -667,11 +697,5 @@ function drawVersus(node: SVGGElement, m: Matchup, width: number) {
   side(a, 0)
   side(h, 1)
 
-  // nothing here takes annotations
-  return {
-    height: bottom + 4,
-    marks: [],
-    invert: () => undefined,
-    project: () => undefined,
-  }
+  return { height: bottom + 4 }
 }

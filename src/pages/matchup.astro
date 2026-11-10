@@ -59,8 +59,8 @@ import Base from "../layouts/Base.astro"
     document.body.append(holder)
     try {
       await fontsReady()
-      const frame = matchupFrame(holder, m)
-      const { blob, missingImages } = await toPng(frame.svg, new URL(base, location.href).href)
+      const svg = matchupFrame(holder, m)
+      const { blob, missingImages } = await toPng(svg, new URL(base, location.href).href)
       const [a, h] = m.prediction.teams
       const date = m.prediction.start.toLocaleDateString("en-CA", { timeZone: "America/New_York" })
       download(blob, `${a.abbrev}-at-${h.abbrev}-${date}.png`.toLowerCase())

@@ -244,6 +244,75 @@ function drawSymbol(g: G, item: LegendItem, cy: number) {
 const sentence = (s: string) =>
   s[0].toUpperCase() + s.slice(1) + (/[.!?…]$/.test(s) ? "" : ".")
 
+// The footer every frame ends with: a rule, the source, and the URL, which
+// keeps its case so it can be typed. `total` is the frame's height
+function drawFooter(
+  svg: Selection<SVGSVGElement, undefined, null, undefined>,
+  width: number,
+  total: number,
+  source: string,
+  url: string,
+) {
+  const ruleY = total - footerHeight + 6
+  svg
+    .append("line")
+    .attr("x1", pad)
+    .attr("x2", width - pad)
+    .attr("y1", ruleY)
+    .attr("y2", ruleY)
+    .attr("stroke", color.ink)
+  const footerY = ruleY + 20
+  svg.append("text").attr("x", pad).attr("y", footerY).call(agate).text(source)
+  svg
+    .append("text")
+    .attr("x", width - pad)
+    .attr("y", footerY)
+    .attr("text-anchor", "end")
+    .attr("font-family", font.agate)
+    .attr("font-size", type.agate.size)
+    .attr("font-weight", 600)
+    .text(url)
+}
+
+// An empty frame: newsprint, the frame's type, attached so text can be
+// measured
+function frameSvg(container: HTMLElement) {
+  const svg = create("svg")
+    .attr("xmlns", "http://www.w3.org/2000/svg")
+    .attr("class", "frame")
+    .attr("font-family", font.head)
+    .attr("fill", color.ink)
+    .style("font-variant-numeric", "tabular-nums")
+  container.replaceChildren(svg.node()!)
+  return svg
+}
+
+// A frame with no band or legend strip, for a view that carries its own
+// header (the matchup's team bands): the body, then the footer. Fit size
+export function buildBareFrame(
+  container: HTMLElement,
+  source: string,
+  url: string,
+  renderBody: (g: SVGGElement, width: number) => { height: number },
+): SVGSVGElement {
+  const { width } = sizes.auto
+  const svg = frameSvg(container)
+  const bg = svg.append("rect").attr("fill", color.bg)
+  const g = svg
+    .append("g")
+    .attr("class", "frame-body")
+    .attr("transform", `translate(${pad},${pad})`)
+  const body = renderBody(g.node()!, width - pad * 2)
+  const total = pad + body.height + 12 + footerHeight
+  drawFooter(svg, width, total, source, url)
+  svg
+    .attr("width", width)
+    .attr("height", total)
+    .attr("viewBox", `0 0 ${width} ${total}`)
+  bg.attr("width", width).attr("height", total)
+  return svg.node()!
+}
+
 export function buildFrame(
   container: HTMLElement,
   size: Size,
@@ -255,14 +324,8 @@ export function buildFrame(
   ) => Body,
 ): Frame {
   const { width, height } = sizes[size]
-  const svg = create("svg")
-    .attr("xmlns", "http://www.w3.org/2000/svg")
-    .attr("class", "frame")
-    .attr("font-family", font.head)
-    .attr("fill", color.ink)
-    .style("font-variant-numeric", "tabular-nums")
-  // attach first, so text can be measured
-  container.replaceChildren(svg.node()!)
+  // attached first, so text can be measured
+  const svg = frameSvg(container)
 
   const bg = svg.append("rect").attr("fill", color.bg)
 
@@ -409,33 +472,8 @@ export function buildFrame(
     height: bodyHeight,
   })
 
-  // --- the footer: a rule, the source, and the URL, which keeps its case so
-  // it can be typed
   const total = height ?? headerHeight + body.height + footerHeight
-  const ruleY = total - footerHeight + 6
-  svg
-    .append("line")
-    .attr("x1", pad)
-    .attr("x2", width - pad)
-    .attr("y1", ruleY)
-    .attr("y2", ruleY)
-    .attr("stroke", color.ink)
-  const footerY = ruleY + 20
-  svg
-    .append("text")
-    .attr("x", pad)
-    .attr("y", footerY)
-    .call(agate)
-    .text(desc.source)
-  svg
-    .append("text")
-    .attr("x", width - pad)
-    .attr("y", footerY)
-    .attr("text-anchor", "end")
-    .attr("font-family", font.agate)
-    .attr("font-size", type.agate.size)
-    .attr("font-weight", 600)
-    .text(url)
+  drawFooter(svg, width, total, desc.source, url)
 
   svg
     .attr("width", width)

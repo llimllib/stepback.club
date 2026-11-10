@@ -79,14 +79,18 @@ MIN / YARAPM / EPM / NET PTS / TEAM: a key under the table
 8. **Phones** (under 760px) get one table a team, the away team's first:
    both sides' eight number columns don't fit beside names.
 9. **Export PNG**, a button under the status line: the table drawn again
-   as SVG in the kit's frame (`matchupFrame`), off screen, and exported
-   with `toPng` like a tool's chart. An ink band, "Celtics at 76ers", with
-   the time and yarapm's expected score as the deck; each team's band,
-   logo and chance, the team net ratings and the three ratings in the
-   body; a legend strip for the value colors; "Data: yarapm ·
-   dunksandthrees · ESPN Analytics" and `billmill.org/nba/matchup` in the
-   footer. One size (Fit),
-   no annotations.
+   as SVG (`matchupFrame`), off screen, and exported with `toPng` like a
+   tool's chart. No band or legend strip, which repeated the team bands
+   (Bill): `buildBareFrame` in `kit/frame.ts` is the body and the footer
+   alone, sharing `buildFrame`'s footer. The game's day and time are in an
+   ink box between the two team bands, like a scoreboard's: "AT" ("VS." at
+   a neutral site), "TUE, NOV 10", "8:00 PM ET". A dateline over the
+   bands, with yarapm's expected score on its right, was tried beside it;
+   the box won as the better use of space. The footer's source starts with
+   the ratings' day, "As of Nov 10, 2026 · Data: yarapm · dunksandthrees ·
+   ESPN Analytics", since they change every day;
+   `billmill.org/nba/matchup` is on its right. One size (Fit), no
+   annotations.
 
 ## Not done
 
