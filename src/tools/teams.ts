@@ -25,12 +25,21 @@ type P = typeof defaults
 type Totals = Record<string, number>
 
 // The datasets a pair can come from. Game logs are summed over a window of
-// games, regular season or playoffs; bbref has the regular season's totals
-const sources = {
+// games, regular season or playoffs; bbref has the regular season's totals;
+// yarapm (its own catalog) has each team's players' ratings, as of a day
+const sources: Record<
+  string,
+  { dataset: string; credit: string; catalog?: "yarapm" }
+> = {
   logs: { dataset: "team_game_logs", credit: "NBA.com" },
   bbref: { dataset: "bbref_team_stats", credit: "basketball-reference.com" },
+  yarapm: {
+    dataset: "team_ratings_daily",
+    catalog: "yarapm",
+    credit: "yarapm",
+  },
 }
-type Src = keyof typeof sources
+type Src = "logs" | "bbref" | "yarapm"
 
 // A stat: `get` is its value from a team's totals, and the league's from
 // the league's. `pct` ticks are percentages, `signed` ones carry a sign;
@@ -113,6 +122,21 @@ const ftRate = (side: "" | "opp_"): Stat => ({
   lower: Boolean(side),
   tip: num2,
 })
+
+// yarapm's offense and defense, both signed so positive is good
+function yarapm(lineup: "" | "full_", label: string): Record<string, Stat> {
+  const side = (col: string, name: string, short: string): Stat => ({
+    label: `${name}${label}`,
+    short,
+    get: t => t[`${lineup}${col}`],
+    signed: true,
+    tip: signed1,
+  })
+  return {
+    [`yarapm_${lineup}off`]: side("off", "yarapm offense", "O"),
+    [`yarapm_${lineup}def`]: side("def", "yarapm defense", "D"),
+  }
+}
 
 const stats: Record<string, Stat> = {
   ortg,
@@ -249,6 +273,10 @@ const stats: Record<string, Stat> = {
     get: t => (100 * t.blk) / t.opp_poss,
     tip: num1,
   },
+  // a team's players' ratings, points per 100 possessions better than the
+  // average team: at full strength, or with the day's expected lineup
+  ...yarapm("full_", ", full strength"),
+  ...yarapm("", ", expected lineup"),
   opp_rim_pct: shooting(
     "opp_rim_fgm",
     "opp_rim_fga",
@@ -274,6 +302,10 @@ interface Pair {
   // lines of constant x − y, named for that difference, for a side of the
   // ball against its opposite
   diff?: (c: number) => string
+  // lines of constant x + y, for offense and defense that add to net
+  sum?: boolean
+  // ratings as of a day, rather than over the season's games
+  asOf?: boolean
   // the first season with the pair's data, if later than its dataset's
   first?: number
 }
@@ -295,6 +327,30 @@ const pairs: Record<string, Pair> = {
     deck: "Points allowed by points scored per 100 possessions",
     corners: ends,
     diff: c => `${sign(c)}${Math.abs(c)}`,
+  },
+  // a team's players' ratings, not its results. Full strength counts
+  // everyone available; the expected lineup, who's likely out
+  yarapm: {
+    name: "yarapm, full strength",
+    group: "Offense and defense",
+    src: "yarapm",
+    x: "yarapm_full_off",
+    y: "yarapm_full_def",
+    deck: "Defense by offense from each team's players' yarapm at full strength, points per 100 possessions better than the average team,",
+    corners: ends,
+    sum: true,
+    asOf: true,
+  },
+  "yarapm-today": {
+    name: "yarapm, expected lineup",
+    group: "Offense and defense",
+    src: "yarapm",
+    x: "yarapm_off",
+    y: "yarapm_def",
+    deck: "Defense by offense from each team's players' yarapm with its expected lineup, counting who's likely out, points per 100 possessions better than the average team,",
+    corners: ends,
+    sum: true,
+    asOf: true,
   },
   pace: {
     name: "Pace and efficiency",
@@ -701,6 +757,43 @@ async function loadBbref(season: number) {
   }
 }
 
+// A team-season's ratings from yarapm's latest day: its last build for this
+// season, the day after the Finals for a past one. Already against the
+// average team; the games are the NBA's regular season's
+async function loadYarapm(season: number, p: P) {
+  const [ratings, logs] = await Promise.all([
+    read("yarapm", "team_ratings_daily", season, [
+      "as_of_date",
+      "team_id",
+      "off",
+      "def",
+      "full_off",
+      "full_def",
+    ]),
+    loadLogs(season, { ...p, playoffs: false, last: "" }),
+  ])
+  const through = max(ratings, r => r.as_of_date as Date)
+  const totals = new Map<string, Totals>()
+  for (const r of ratings) {
+    if (+r.as_of_date !== +through!) continue
+    totals.set(r.team_id, {
+      games: logs.totals.get(r.team_id)?.games ?? 0,
+      off: r.off,
+      def: r.def,
+      full_off: r.full_off,
+      full_def: r.full_def,
+    })
+  }
+  return {
+    totals,
+    windows: [],
+    last: "",
+    through,
+    playoffs: false,
+    hasPlayoffs: false,
+  }
+}
+
 export const teamCharts: Tool<P, D> = {
   id: "teams",
   name: "Team charts",
@@ -710,7 +803,7 @@ export const teamCharts: Tool<P, D> = {
     const id = pairs[p.pair] ? p.pair : defaults.pair
     const pair = pairs[id]
     const [sx, sy] = [stats[pair.x], stats[pair.y]]
-    const meta = await metadata()
+    const meta = await metadata(sources[pair.src].catalog)
     const { last_season } = meta[sources[pair.src].dataset]
     const first_season = Math.max(
       meta[sources[pair.src].dataset].first_season,
@@ -721,7 +814,11 @@ export const teamCharts: Tool<P, D> = {
       Math.max(first_season, p.season || last_season),
     )
     const [loaded, names] = await Promise.all([
-      pair.src === "bbref" ? loadBbref(season) : loadLogs(season, p),
+      pair.src === "bbref"
+        ? loadBbref(season)
+        : pair.src === "yarapm"
+          ? loadYarapm(season, p)
+          : loadLogs(season, p),
       read("stats", "team_seasons", season, [
         "team_id",
         "nba_abbrev",
@@ -814,14 +911,18 @@ export const teamCharts: Tool<P, D> = {
     const pair = pairOf(d.pair)
     const [sx, sy] = [stats[pair.x], stats[pair.y]]
     const kind = d.playoffs ? "playoffs" : "regular season"
-    const span = !d.last
-      ? `in the ${fmtSeason(d.season)} ${kind}`
-      : `over each team's last ${d.last} games of the ${fmtSeason(d.season)} ${kind}`
+    const current = d.season === d.latest && d.through
+    // ratings as of a day: a past season's are its final ones
+    const span = pair.asOf
+      ? current
+        ? `as of ${fmtDate(d.through!)}`
+        : `at the end of the ${fmtSeason(d.season)} season`
+      : !d.last
+        ? `in the ${fmtSeason(d.season)} ${kind}`
+        : `over each team's last ${d.last} games of the ${fmtSeason(d.season)} ${kind}`
     // a past season's last date is the end of the season, which says nothing
     const through =
-      d.season === d.latest && d.through
-        ? `, through ${fmtDate(d.through)}`
-        : ""
+      current && !pair.asOf ? `, through ${fmtDate(d.through!)}` : ""
     // with both axes signed, the averages are the zero lines
     const reference: LegendItem[] = pair.ratios
       ? [
@@ -855,6 +956,15 @@ export const teamCharts: Tool<P, D> = {
               },
             ]
           : []),
+        ...(pair.sum
+          ? [
+              {
+                symbol: "line" as const,
+                color: color.faint,
+                text: `diagonals: net, ${sx.short} + ${sy.short}`,
+              },
+            ]
+          : []),
       ],
       counts: `${most} games`,
       source: `Data: ${sources[pair.src].credit}`,
@@ -870,7 +980,9 @@ export const teamCharts: Tool<P, D> = {
       ? { kind: "ratios", ratios: pair.ratios, zero: false }
       : pair.diff
         ? { kind: "diff", name: pair.diff }
-        : { kind: "average" }
+        : pair.sum
+          ? { kind: "sum" }
+          : { kind: "average" }
     const { plot, x, y, plotW, plotH, left, top, body } = scatterPlot(node, {
       size,
       x: { title: sx.label, pct: sx.pct, signed: sx.signed, reverse: sx.lower },
