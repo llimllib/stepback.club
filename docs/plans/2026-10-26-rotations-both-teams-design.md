@@ -5,16 +5,36 @@ changes.
 
 ## What
 
-The rotations tool shows the selected team's rotation on top, its
-opponent's below, and the game's score margin between them, all on one
-game-clock x axis, so a run in the margin reads straight up and down to who
-was on the floor.
+The rotations tool shows both teams' rotations in one game, the away
+team's on top and the home team's below, with the game's score margin
+between them, all on one game-clock x axis, so a run in the margin reads
+straight up and down to who was on the floor.
 
 ## Decisions
 
-- **Still the selected team's chart.** The band keeps the team's color and
-  the headline stays "Boston Celtics rotation". The opponent is context.
-  Picking the other team flips the chart. Controls and URL are unchanged.
+- **The game's chart, not the team's** (changed 2026-11-11). It was the
+  selected team's chart, on top, under a band in its color headlined
+  "Boston Celtics rotation", but half the chart was the opponent, and a
+  Sixers fan posting it got a Celtics band. Now the order is the box
+  score's: away on top, home below, and at a neutral site, where `games`
+  has neither, the winner on top, as the scores page lists them. The Team
+  control only picks whose schedule the game comes from: either team
+  gives the same chart. Controls and URL are unchanged.
+- **The header is the two teams**, as on the matchup page: a band for
+  each, away on the left, with its logo, its city over its name, and its
+  points, the winner's in bold and the loser's in regular, so the result
+  doesn't need color to read. The frame is narrower than the matchup page,
+  and on one line a name as long as Philadelphia 76ers shrank to fit
+  beside the points; the city goes over the name, smaller, instead.
+  Between the bands, the ink box says "at" ("vs." at a neutral site), the
+  day ("Sat, May 2") and "Final" (or "Final/OT"). A finished game's tip
+  time isn't worth a second read of the schedule, and "Final" says more.
+  The headline under the bands is a kicker, "Rotations", with the deck
+  after it on the same line, which carries the season, so the day has a
+  year: "Round 1 G7 of the 2025–26 playoffs", "2025–26 regular season".
+  Both can be rewritten as on any chart. The kit draws it from
+  `Description.versus` (`versusBands` in `kit/frame.ts`, which the
+  matchup's export uses too).
 - **Opponent stints are colored from the opponent's side**: blue still means
   that player's group won the stint.
 - **Team heads above their rows**, in agate on a rule, each with its own MIN
@@ -22,10 +42,10 @@ was on the floor.
   considered, for a mirror. It was rejected because the axis would sit
   between the head and its rows, and a head under its rows reads like a
   caption.
-- **The margin graph** is four rows tall, from the selected team's side.
+- **The margin graph** is four rows tall, from the away team's side.
   Zero is the heaviest line. The fill is RdBu's lighter blue (`#92c5de`) where the team
   led and lighter red (`#f4a582`) where it trailed, and the sides are
-  labeled "BOS ahead" and "PHI ahead", so position reads without color. The
+  labeled "PHI ahead" and "BOS ahead", so position reads without color. The
   final margin is printed signed at the line's end.
 - **The margin comes from `game_events`**, nba_data's play-by-play, read
   one game at a time (`readWhere` in `kit/data.ts`; its footer is about
@@ -67,7 +87,7 @@ was on the floor.
   0–0 the stints give the exact margin at every substitution, and nothing
   between. That line draws a dot at each point, and the legend says
   "margin at each sub". Where the two teams' stints disagree on one clock
-  tick (free throws credited to the players on for the foul), the selected
+  tick (free throws credited to the players on for the foul), the away
   team's side wins.
 - **Fixed export sizes** shrink all rows together. The margin graph drops
   to three rows when rows would be under 18px, and rows go down to 11px,

@@ -102,7 +102,10 @@ The exported PNG is the product, so this is the part that matters most.
 
 - **Band.** The team's primary color when the view is about one team;
   ink otherwise. Text is white or ink, whichever passes WCAG contrast
-  (4.5:1), computed, not guessed.
+  (4.5:1), computed, not guessed. A view of one game (rotations) gets a
+  band per team instead, away on the left, with an ink "at" box between
+  them, as on the matchup page; its headline and deck go under them on
+  newsprint (2026-11-11).
 - **Headline** in condensed caps; editable on the chart as now.
 - **Deck**: the context line, in serif, written as a phrase rather than
   `·`-separated fragments.

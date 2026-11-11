@@ -1,6 +1,7 @@
 // The contract every tool implements. A tool says what question controls it
 // has, how to load data, and how to draw its chart into the body of a frame;
 // the kit supplies the frame, URL state, annotations and export
+import type { Versus } from "./frame"
 import type { Params, ParamValue } from "./state"
 
 export interface Option {
@@ -121,6 +122,9 @@ export interface Description {
   source: string
   // the team the view is about: the band takes its color and logo
   team?: string
+  // a game between two teams: each gets a band, away on the left, and the
+  // headline and deck go under them. Takes the place of `team`'s band
+  versus?: Versus
 }
 
 export interface Tool<P extends Params, D> {

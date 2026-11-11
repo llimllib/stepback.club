@@ -1,7 +1,8 @@
-// A team's rotation in one game, over its opponent's: one row per player, one
-// bar per stint on the game clock, colored and labeled by the score margin
-// while they were on, with each personal foul on it and the game's margin
-// between the two
+// Both teams' rotations in one game, the away team's over the home team's:
+// one row per player, one bar per stint on the game clock, colored and
+// labeled by the score margin while they were on, with each personal foul on
+// it and the game's margin between the two. The team picked only chooses
+// whose schedule the game comes from
 import {
   area,
   curveLinear,
@@ -15,7 +16,7 @@ import {
   sum,
 } from "d3"
 import { lookups, read, readWhere, type Row as DataRow } from "../kit/data"
-import { agate } from "../kit/frame"
+import { agate, cityAndName, type VersusSide } from "../kit/frame"
 import { halo } from "../kit/halo"
 import { color, type } from "../kit/theme"
 import type { Body, Mark, Tool } from "../kit/tool"
@@ -58,6 +59,10 @@ interface Game {
   date: Date
   // "vs NYK" or "@ NYK"
   where: string
+  // the team is listed first: it's the away team, or at a neutral site,
+  // which has neither, the winner, as the scores page lists them
+  first: boolean
+  neutral: boolean
   // "Finals G7", "Preseason", ... empty for the regular season
   kind: string
   opp_team_id: string
@@ -160,6 +165,46 @@ function pick(d: Omit<D, "events">, p: P) {
   return { team, game }
 }
 
+interface Side {
+  team_id: string
+  abbrev: string
+  name: string
+  pts: number
+}
+
+// The game shown, and its two teams in the order they're drawn: away on
+// top, home under it
+function matchup(d: D, p: P) {
+  const team = d.teams.get(p.team)!
+  const game = d.games.get(team.team_id)!.find(gm => gm.game_id === p.game)!
+  const picked: Side = {
+    team_id: team.team_id,
+    abbrev: p.team,
+    name: team.name,
+    pts: game.pts,
+  }
+  const opp: Side = {
+    team_id: game.opp_team_id,
+    abbrev: game.opp,
+    name: game.opp_name || game.opp,
+    pts: game.opp_pts,
+  }
+  const sides: [Side, Side] = game.first ? [picked, opp] : [opp, picked]
+  return { game, sides }
+}
+
+// The game's periods: four, and any overtimes
+function periodCount(d: D, game: string) {
+  const last = max(
+    [...d.stints]
+      .filter(([k]) => k.startsWith(`${game}:`))
+      .flatMap(([, ss]) => ss.map(s => s.out)),
+  )!
+  let n = 4
+  while (periodStart(n + 1) < last) n++
+  return n
+}
+
 const byPlay = (d: D, game: string) =>
   d.events?.game_id === game && d.events.plays.length > 0
 
@@ -172,7 +217,7 @@ const ordinal = (n: number) =>
   `${n}${n === 1 ? "st" : n === 2 ? "nd" : n === 3 ? "rd" : "th"}`
 
 // The margin, from team_id's side, after every scoring play
-function margins(d: D, game: Game, team_id: string) {
+function margins(d: D, game: Game, team_id: string, opp_id: string) {
   if (byPlay(d, game.game_id)) {
     const plays = d.events!.plays
     const sign = plays[0].home_team_id === team_id ? 1 : -1
@@ -184,18 +229,18 @@ function margins(d: D, game: Game, team_id: string) {
       })),
     ]
   }
-  return subMargins(d, game, team_id)
+  return subMargins(d, game, team_id, opp_id)
 }
 
 // The margin, from team_id's side, at every substitution, for seasons
 // without scoring plays. A stint's plus-minus is the change in margin across
 // it, so from 0–0 at the tip each stint gives the margin when it ends from
 // the margin when it began. Runs between substitutions don't show
-function subMargins(d: D, game: Game, team_id: string) {
+function subMargins(d: D, game: Game, team_id: string, opp_id: string) {
   const at = new Map([[0, 0]])
   for (const [id, sign] of [
     [team_id, 1],
-    [game.opp_team_id, -1],
+    [opp_id, -1],
   ] as const) {
     // a stint begins when another ends, so by then that one's been counted
     const ss = [...(d.stints.get(`${game.game_id}:${id}`) ?? [])].sort(
@@ -290,11 +335,14 @@ export const rotations: Tool<P, D> = {
         const [opp_id, opp_pts] = [...pts].find(([id]) => id !== team_id) ?? []
         if (!opp_id) continue
         if (!games.has(team_id)) games.set(team_id, [])
+        // neutral-site games have no home team, and read "vs"
+        const neutral = !g.home_team_id
         games.get(team_id)!.push({
           game_id,
           date: g.game_date,
-          // neutral-site games have no home team, and read "vs"
           where: `${g.away_team_id === team_id ? "@" : "vs"} ${lk.teams.get(opp_id)?.nba_abbrev ?? ""}`,
+          first: neutral ? own > opp_pts! : g.away_team_id === team_id,
+          neutral,
           opp_team_id: opp_id,
           opp: lk.teams.get(opp_id)?.nba_abbrev ?? "",
           opp_name: lk.teams.get(opp_id)?.full_name ?? "",
@@ -426,12 +474,39 @@ export const rotations: Tool<P, D> = {
   },
 
   describe(d, p) {
-    const team = d.teams.get(p.team)!
-    const g = d.games.get(team.team_id)!.find(gm => gm.game_id === p.game)!
+    const { game: g, sides } = matchup(d, p)
+    const ot = periodCount(d, g.game_id) - 4
+    const day = g.date.toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    })
+    // the season, which also dates the day in the box
+    const season = fmtSeason(d.season)
+    const subs = (t: Side) =>
+      substitutions(d.stints.get(`${g.game_id}:${t.team_id}`)!)
     return {
-      title: `${team.name} rotation`,
-      context: `${g.pts > g.opp_pts ? "Won" : "Lost"} ${g.pts}–${g.opp_pts} ${g.where.replace(/^@/, "at")} on ${fmtDate(g.date, true, "long")}${g.kind ? `, ${g.kind}` : ""}`,
-      counts: `${substitutions(d.stints.get(`${g.game_id}:${team.team_id}`)!)} subs · ${g.opp} ${substitutions(d.stints.get(`${g.game_id}:${g.opp_team_id}`)!)}`,
+      title: "Rotations",
+      context: !g.kind
+        ? `${season} regular season`
+        : /^(Round|Conf|Finals)/.test(g.kind)
+          ? `${g.kind} of the ${season} playoffs`
+          : `${g.kind}, ${season}`,
+      counts: `${sides[0].abbrev} ${subs(sides[0])} subs · ${sides[1].abbrev} ${subs(sides[1])}`,
+      versus: {
+        sides: sides.map(t => ({
+          abbrev: t.abbrev,
+          ...cityAndName(t.name),
+          score: t.pts,
+          won: t.pts > sides.find(o => o !== t)!.pts,
+        })) as [VersusSide, VersusSide],
+        word: g.neutral ? "vs." : "at",
+        lines: [
+          day,
+          ot === 0 ? "Final" : ot === 1 ? "Final/OT" : `Final/${ot}OT`,
+        ],
+      },
       legend: [
         { symbol: "bar", color: color.pos, label: "+1", text: "won the stint" },
         {
@@ -494,17 +569,14 @@ export const rotations: Tool<P, D> = {
   },
 
   render(node, d, p, size): Body {
-    const team = d.teams.get(p.team)!
-    const game = d.games.get(team.team_id)!.find(gm => gm.game_id === p.game)!
-    // the team on top, its opponent under the margin
-    const blocks = [
-      { name: team.name, rows: rows(d, p.game, team.team_id) },
-      {
-        name: game.opp_name || game.opp,
-        rows: rows(d, p.game, game.opp_team_id),
-      },
-    ]
-    const ms = margins(d, game, team.team_id)
+    const { game, sides } = matchup(d, p)
+    const [away, home] = sides
+    // the away team on top, the home team under the margin
+    const blocks = sides.map(t => ({
+      name: t.name,
+      rows: rows(d, p.game, t.team_id),
+    }))
+    const ms = margins(d, game, away.team_id, home.team_id)
     // the margin after each scoring play, or, without them, at each sub,
     // which is known only at its points and so is drawn with a dot at each
     const plays = byPlay(d, p.game)
@@ -569,13 +641,7 @@ export const rotations: Tool<P, D> = {
     const statsWidth = colW * 2
 
     // the game runs to the end of its last period, overtimes included
-    const last = max(
-      [...d.stints]
-        .filter(([k]) => k.startsWith(`${p.game}:`))
-        .flatMap(([, ss]) => ss.map(s => s.out)),
-    )!
-    let periods = 4
-    while (periodStart(periods + 1) < last) periods++
+    const periods = periodCount(d, p.game)
     const end = periodStart(periods + 1)
     // the last score holds to the final horn
     if (plays) ms.push({ t: end, m: ms[ms.length - 1].m })
@@ -583,7 +649,7 @@ export const rotations: Tool<P, D> = {
       .domain([0, end])
       .range([labelWidth, size.width - statsWidth - 8])
 
-    // the margin, from the team's side: above zero is a lead. Each side
+    // the margin, from the away team's side: above zero is its lead. Each side
     // gets some room, so its label fits even if that team never led
     const lo = Math.min(
       min(ms, s => s.m)!,
@@ -606,7 +672,7 @@ export const rotations: Tool<P, D> = {
 
     const plot = g.append("g").attr("transform", `translate(0,${topHeight})`)
 
-    // the margin's fill, blue where the team led and red where it trailed,
+    // the margin's fill, blue where the away team led and red where it trailed,
     // in the lighter blue and red of the same RdBu scale as the bars
     const id = `rotations-margin-${++clips}`
     const defs = plot.append("defs")
@@ -715,7 +781,7 @@ export const rotations: Tool<P, D> = {
       .attr("cy", s => y(s.m))
       .attr("r", 1.75)
       .attr("fill", color.ink)
-    const final = game.pts - game.opp_pts
+    const final = away.pts - home.pts
     plot
       .append("text")
       .attr("x", x(end) + 6)
@@ -726,8 +792,8 @@ export const rotations: Tool<P, D> = {
       .text(signed(final))
     // which side is whose, and how far ahead, in the names' column
     for (const [text, ty] of [
-      [`${p.team} ahead`, zero - 6],
-      [`${game.opp} ahead`, zero + 14],
+      [`${away.abbrev} ahead`, zero - 6],
+      [`${home.abbrev} ahead`, zero + 14],
     ] as const)
       plot.append("text").attr("x", 0).attr("y", ty).call(agate).text(text)
     plot

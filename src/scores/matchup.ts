@@ -5,7 +5,14 @@
 // docs/plans/2026-11-10-matchup-design.md
 import { read, readWhere } from "../kit/data"
 import { select } from "d3"
-import { agate, bandColors, buildBareFrame, logoUrl } from "../kit/frame"
+import {
+  agate,
+  bandColors,
+  buildBareFrame,
+  versusBands,
+  logoUrl,
+  type VersusSide,
+} from "../kit/frame"
 import { color, font, SITE } from "../kit/theme"
 import {
   factors as factorList,
@@ -542,98 +549,16 @@ function drawVersus(node: SVGGElement, m: Matchup, width: number) {
         }
   }
 
-  // the box between the bands, like a scoreboard's: "at" ("vs." at a
-  // neutral site), the day and the time, in ink
-  const boxW = 92
-  const seam = 3
-  const boxX = mid - boxW / 2
-  g.append("rect")
-    .attr("x", boxX)
-    .attr("width", boxW)
-    .attr("height", bandH)
-    .attr("fill", color.ink)
-  g.append("text")
-    .attr("x", mid)
-    .attr("y", 21)
-    .attr("text-anchor", "middle")
-    .attr("font-family", font.head)
-    .attr("font-weight", 700)
-    .attr("font-size", 18)
-    .attr("fill", color.bg)
-    .style("text-transform", "uppercase")
-    .text(game.neutral ? "vs." : "at")
-  ;[day, time].forEach((t, k) =>
-    g
-      .append("text")
-      .attr("x", mid)
-      .attr("y", 34 + k * 11)
-      .attr("text-anchor", "middle")
-      .call(agate)
-      .attr("font-size", 9.5)
-      .attr("letter-spacing", "0.02em")
-      .attr("fill", color.bg)
-      .text(t),
-  )
-
-  // each team's band: its color, the name, chance to win and expected
-  // points, the logo in a
-  // newsprint box at the outside edge
-  ;[a, h].forEach((l, i) => {
-    const { band, text } = bandColors(l.team.abbrev)
-    const x0 = i ? mid + boxW / 2 + seam : 0
-    const w = mid - boxW / 2 - seam
-    g.append("rect")
-      .attr("x", x0)
-      .attr("width", w)
-      .attr("height", bandH)
-      .attr("fill", band)
-    // the logo box, inset so the band surrounds it on every side
-    const inset = 6
-    const box = bandH - inset * 2
-    const bx = i ? x0 + w - inset - box : x0 + inset
-    g.append("rect")
-      .attr("x", bx)
-      .attr("y", inset)
-      .attr("width", box)
-      .attr("height", box)
-      .attr("fill", color.bg)
-    g.append("image")
-      .attr("href", logoUrl(l.team.abbrev))
-      .attr("x", bx + 4)
-      .attr("y", inset + 4)
-      .attr("width", box - 8)
-      .attr("height", box - 8)
-    const tx = i ? x0 + w - inset - box - 10 : x0 + inset + box + 10
-    const anchor = i ? "end" : "start"
-    const name = g
-      .append("text")
-      .attr("x", tx)
-      .attr("y", 25)
-      .attr("text-anchor", anchor)
-      .attr("font-family", font.head)
-      .attr("font-weight", 700)
-      .attr("font-size", 24)
-      .attr("fill", text)
-      .style("text-transform", "uppercase")
-      .text(l.team.name)
-    const sub = g
-      .append("text")
-      .attr("x", tx)
-      .attr("y", 42)
-      .attr("text-anchor", anchor)
-      .call(agate)
-      .attr("fill", text)
-      .text(subhead(l))
-    // a long name or subhead shrinks to fit beside the logo (Minnesota
-    // Timberwolves), since SVG text doesn't wrap
-    const room = w - inset - box - 20
-    for (const [t, size] of [
-      [name, 24],
-      [sub, 11],
-    ] as const) {
-      const len = t.node()!.getComputedTextLength()
-      if (len > room) t.attr("font-size", (size * room) / len)
-    }
+  // each team's band, with the box between them like a scoreboard's: "at"
+  // ("vs." at a neutral site), the day and the time
+  versusBands(node, width, bandH, {
+    sides: [a, h].map(l => ({
+      abbrev: l.team.abbrev,
+      name: l.team.name,
+      sub: subhead(l),
+    })) as [VersusSide, VersusSide],
+    word: game.neutral ? "vs." : "at",
+    lines: [day, time],
   })
 
   // column heads

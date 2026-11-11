@@ -2,7 +2,7 @@
 // header band (headline, deck, logo box) in the team's color or ink, a
 // legend strip, the chart body, and a footer with the source and the tool's
 // URL. See docs/plans/2026-10-25-newspaper-design.md
-import { create, rgb, type Selection } from "d3"
+import { create, rgb, select, type Selection } from "d3"
 import { teams } from "./teams"
 import { color, font, type } from "./theme"
 import type { Body, Description, LegendItem } from "./tool"
@@ -61,6 +61,186 @@ export function bandColors(abbrev?: string) {
 const logoCodes: Record<string, string> = { NOP: "no", UTA: "utah" }
 export const logoUrl = (abbrev: string) =>
   `https://a.espncdn.com/i/teamlogos/nba/500/${logoCodes[abbrev] ?? abbrev.toLowerCase()}.png`
+
+// One team in a two-team band: its name, under its city or over a subhead,
+// and beside it the points it scored. The winner's points are bold, the loser's
+// regular, so the result reads without its color
+export interface VersusSide {
+  abbrev: string
+  name: string
+  // set, and without a subhead, the city goes over the name, smaller
+  city?: string
+  sub?: string
+  score?: number
+  won?: boolean
+}
+
+// A game's two teams, away on the left (at a neutral site, whichever the
+// caller puts first), with an ink box between them like a scoreboard's: a
+// word ("at", "vs.") and lines of agate under it
+export interface Versus {
+  sides: [VersusSide, VersusSide]
+  word: string
+  lines: string[]
+}
+
+// The two bands and the box between, `width` by `height`, at the node's
+// origin. Each band is its team's color, contrast-picked text, and its logo
+// in a newsprint box inset at the outside edge, so the band surrounds it
+export function versusBands(
+  node: SVGGElement,
+  width: number,
+  height: number,
+  v: Versus,
+) {
+  const g = select(node)
+  const mid = width / 2
+  const boxW = 92
+  const seam = 3
+  g.append("rect")
+    .attr("x", mid - boxW / 2)
+    .attr("width", boxW)
+    .attr("height", height)
+    .attr("fill", color.ink)
+  // the word and its lines, centered as a block: the word's caps are about
+  // 13px tall, and each line 11
+  const wordY = Math.floor((height - (13 + v.lines.length * 11)) / 2) + 13
+  g.append("text")
+    .attr("x", mid)
+    .attr("y", wordY)
+    .attr("text-anchor", "middle")
+    .attr("font-family", font.head)
+    .attr("font-weight", 700)
+    .attr("font-size", 18)
+    .attr("fill", color.bg)
+    .style("text-transform", "uppercase")
+    .text(v.word)
+  v.lines.forEach((t, k) =>
+    g
+      .append("text")
+      .attr("x", mid)
+      .attr("y", wordY + 13 + k * 11)
+      .attr("text-anchor", "middle")
+      .call(agate)
+      .attr("font-size", 9.5)
+      .attr("letter-spacing", "0.02em")
+      .attr("fill", color.bg)
+      .text(t),
+  )
+
+  const nameSize = Math.round(height * 0.46)
+  const scoreSize = Math.round(height * 0.6)
+  v.sides.forEach((s, i) => {
+    const { band, text } = bandColors(s.abbrev)
+    const x0 = i ? mid + boxW / 2 + seam : 0
+    const w = mid - boxW / 2 - seam
+    g.append("rect")
+      .attr("x", x0)
+      .attr("width", w)
+      .attr("height", height)
+      .attr("fill", band)
+    const inset = Math.round(height / 9)
+    const box = height - inset * 2
+    const bx = i ? x0 + w - inset - box : x0 + inset
+    g.append("rect")
+      .attr("x", bx)
+      .attr("y", inset)
+      .attr("width", box)
+      .attr("height", box)
+      .attr("fill", color.bg)
+    if (teams.has(s.abbrev))
+      g.append("image")
+        .attr("href", logoUrl(s.abbrev))
+        .attr("x", bx + 4)
+        .attr("y", inset + 4)
+        .attr("width", box - 8)
+        .attr("height", box - 8)
+    // the points, at the band's inner edge, beside the box
+    let scoreW = 0
+    if (s.score !== undefined) {
+      const score = g
+        .append("text")
+        .attr("x", i ? x0 + 12 : x0 + w - 12)
+        .attr("y", height / 2 + scoreSize * 0.35)
+        .attr("text-anchor", i ? "start" : "end")
+        .attr("font-family", font.head)
+        .attr("font-weight", s.won ? 700 : 500)
+        .attr("font-size", scoreSize)
+        .attr("fill", text)
+        .text(s.score)
+      scoreW = score.node()!.getComputedTextLength() + 12
+    }
+    const tx = i ? x0 + w - inset - box - 10 : x0 + inset + box + 10
+    const anchor = i ? "end" : "start"
+    const room = w - inset - box - 20 - scoreW
+    const line = () =>
+      g
+        .append("text")
+        .attr("x", tx)
+        .attr("text-anchor", anchor)
+        .attr("font-family", font.head)
+        .attr("fill", text)
+        .style("text-transform", "uppercase")
+    // the city over the name, smaller, where the band has no subhead: one
+    // line would shrink to fit a name as long as Philadelphia 76ers
+    if (s.city && !s.sub) {
+      const city = line().attr("font-weight", 600).text(s.city)
+      const name = line().attr("font-weight", 700).text(s.name)
+      const citySize = Math.round(height * 0.24)
+      const size = Math.round(height * 0.4)
+      city.attr("font-size", citySize)
+      name.attr("font-size", size)
+      // both shrink together, so the city stays the smaller
+      const f = Math.min(
+        1,
+        ...[city, name].map(t => room / t.node()!.getComputedTextLength()),
+      )
+      city.attr("font-size", citySize * f)
+      name.attr("font-size", size * f)
+      // centered on the caps: about 0.7 of each size, and a gap between
+      const block = (citySize * 0.7 + 4 + size * 0.7) * f
+      const cityY = (height - block) / 2 + citySize * 0.7 * f
+      city.attr("y", cityY)
+      name.attr("y", cityY + (4 + size * 0.7) * f)
+      return
+    }
+    const name = line()
+      .attr("y", s.sub ? height * 0.48 : height / 2 + nameSize * 0.35)
+      .attr("font-weight", 700)
+      .attr("font-size", nameSize)
+      .text(s.name)
+    const sub =
+      s.sub &&
+      g
+        .append("text")
+        .attr("x", tx)
+        .attr("y", height * 0.81)
+        .attr("text-anchor", anchor)
+        .call(agate)
+        .attr("fill", text)
+        .text(s.sub)
+    // a long name or subhead shrinks to fit beside the logo (Minnesota
+    // Timberwolves), since SVG text doesn't wrap
+    for (const [t, size] of [
+      [name, nameSize],
+      ...(sub ? [[sub, type.agate.size] as const] : []),
+    ] as const) {
+      const len = t.node()!.getComputedTextLength()
+      if (len > room) t.attr("font-size", (size * room) / len)
+    }
+  })
+}
+
+// A team's full name as its city and its name: the name is the last word,
+// except the Trail Blazers'
+export function cityAndName(full: string) {
+  const words = full.split(" ")
+  const n = /^trail ?blazers$/i.test(words.slice(-2).join(" ")) ? 2 : 1
+  return {
+    city: words.slice(0, -n).join(" "),
+    name: words.slice(-n).join(" "),
+  }
+}
 
 // Load the faces frames draw with before the first render: text is measured
 // as it's laid out, and a face still loading measures as its fallback
@@ -329,12 +509,21 @@ export function buildFrame(
 
   const bg = svg.append("rect").attr("fill", color.bg)
 
-  // --- the band: headline and deck on the left, the logo box on the right
-  const { band, text: onBand, team } = bandColors(desc.team)
-  const bandRect = svg.append("rect").attr("fill", band).attr("width", width)
+  // --- the band: headline and deck on the left, the logo box on the right.
+  // A game's two teams get a band each instead, with the headline and deck
+  // under them on newsprint
+  const vs = desc.versus
+  const vsHeight = 76
+  const { band, text, team } = bandColors(desc.team)
+  const onBand = vs ? color.ink : text
+  const bandRect = svg
+    .append("rect")
+    .attr("fill", vs ? "none" : band)
+    .attr("width", width)
+  if (vs) versusBands(svg.append("g").node()!, width, vsHeight, vs)
   const deckSize = type.deck.size
   const deckLine = deckSize * 1.3
-  const titleTop = pad - 4
+  const titleTop = vs ? vsHeight + 16 : pad - 4
   const title = svg
     .append("text")
     .attr("class", "frame-title")
@@ -348,9 +537,10 @@ export function buildFrame(
   // the logo box is a fixed width at the band's right end, as tall as the
   // band
   const box = 116
-  const textWidth = width - pad * 2 - box
-  // the headline shrinks to fit on one line
-  let titleSize: number = type.title.size
+  const textWidth = width - pad * 2 - (vs ? 0 : box)
+  // the headline shrinks to fit on one line. Under a game's bands it's a
+  // kicker, smaller, since the bands are the headline
+  let titleSize: number = vs ? 26 : type.title.size
   title.attr("font-size", titleSize)
   const tw = title.node()!.getComputedTextLength()
   if (tw > textWidth) {
@@ -366,61 +556,77 @@ export function buildFrame(
     .attr("font-size", deckSize)
     .attr("fill", onBand)
   const deck = desc.who ? `${sentence(desc.who)} ${desc.context}` : desc.context
-  const lines = wrap(context.node()!, deck, textWidth)
-  const deckTop = titleTop + titleSize * 0.82 + 8 + deckSize
+  // under a game's bands the deck follows the kicker on its line, like a
+  // dateline, and wraps under itself, unless a long kicker leaves it too
+  // little room
+  const titleBase = titleTop + titleSize * 0.82
+  const after = pad + title.node()!.getComputedTextLength() + 14
+  const inline = vs && textWidth - (after - pad) >= 240
+  const deckX = inline ? after : pad
+  const lines = wrap(context.node()!, deck, textWidth - (deckX - pad))
+  const deckTop = inline ? titleBase : titleBase + 8 + deckSize
   context.attr("data-text", deck)
   lines.forEach((l, i) =>
     context
       .append("tspan")
-      .attr("x", pad)
+      .attr("x", deckX)
       .attr("y", deckTop + i * deckLine)
       .text(l),
   )
-  const bandHeight = Math.max(
-    box,
-    deckTop + (lines.length - 1) * deckLine + pad - 6,
-  )
+  const deckBottom = deckTop + (lines.length - 1) * deckLine
+  const bandHeight = vs ? deckBottom + 14 : Math.max(box, deckBottom + pad - 6)
   bandRect.attr("height", bandHeight)
-
-  // the logo box: newsprint, so every logo reads whatever the band color
-  const bx0 = width - box
-  svg
-    .append("rect")
-    .attr("x", bx0)
-    .attr("width", box)
-    .attr("height", bandHeight)
-    .attr("fill", color.bg)
-  svg
-    .append("line")
-    .attr("x1", bx0)
-    .attr("x2", bx0)
-    .attr("y2", bandHeight)
-    .attr("stroke", color.ink)
-    .attr("stroke-width", 2)
-  if (team) {
-    const s = box - 24
+  if (vs)
     svg
-      .append("image")
-      .attr("href", logoUrl(team.abbreviation))
-      .attr("x", bx0 + 12)
-      .attr("y", (bandHeight - s) / 2)
-      .attr("width", s)
-      .attr("height", s)
-  } else {
-    // views about no one team carry the wordmark instead
-    const words = ["STEP", "BACK", "CLUB"]
-    const ws = (box - 26) / 3
-    const top = (bandHeight - ws * 3) / 2
-    words.forEach((w, i) =>
+      .append("line")
+      .attr("x1", pad)
+      .attr("x2", width - pad)
+      .attr("y1", bandHeight)
+      .attr("y2", bandHeight)
+      .attr("stroke", color.grid)
+
+  // the logo box: newsprint, so every logo reads whatever the band color.
+  // A game's bands have their own
+  if (!vs) {
+    const bx0 = width - box
+    svg
+      .append("rect")
+      .attr("x", bx0)
+      .attr("width", box)
+      .attr("height", bandHeight)
+      .attr("fill", color.bg)
+    svg
+      .append("line")
+      .attr("x1", bx0)
+      .attr("x2", bx0)
+      .attr("y2", bandHeight)
+      .attr("stroke", color.ink)
+      .attr("stroke-width", 2)
+    if (team) {
+      const s = box - 24
       svg
-        .append("text")
-        .attr("x", bx0 + box / 2)
-        .attr("y", top + ws * (i + 0.86))
-        .attr("text-anchor", "middle")
-        .attr("font-size", ws * 1.08)
-        .attr("font-weight", 700)
-        .text(w),
-    )
+        .append("image")
+        .attr("href", logoUrl(team.abbreviation))
+        .attr("x", bx0 + 12)
+        .attr("y", (bandHeight - s) / 2)
+        .attr("width", s)
+        .attr("height", s)
+    } else {
+      // views about no one team carry the wordmark instead
+      const words = ["STEP", "BACK", "CLUB"]
+      const ws = (box - 26) / 3
+      const top = (bandHeight - ws * 3) / 2
+      words.forEach((w, i) =>
+        svg
+          .append("text")
+          .attr("x", bx0 + box / 2)
+          .attr("y", top + ws * (i + 0.86))
+          .attr("text-anchor", "middle")
+          .attr("font-size", ws * 1.08)
+          .attr("font-weight", 700)
+          .text(w),
+      )
+    }
   }
 
   // --- the legend strip: what the marks mean, and the counts
