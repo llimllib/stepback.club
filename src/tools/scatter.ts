@@ -24,7 +24,17 @@ type P = typeof defaults
 
 // The datasets a stat can come from, whether they split the regular season
 // from the playoffs, and who to credit. Every pair also reads
-// player_season_stats, for teams, games and the volume behind Top %
+// player_season_stats, for teams, games and the volume behind Top %.
+// `catalog` is where the dataset is, nba_data's or yarapm's; a `daily` one
+// has a row per player per day, and a player's season is their last day's
+interface Source {
+  source: string
+  dataset: string
+  kinds: boolean
+  credit: string
+  catalog?: "yarapm"
+  daily?: boolean
+}
 const sources = {
   stats: {
     source: "stats",
@@ -39,11 +49,21 @@ const sources = {
     credit: "ESPN",
   },
   // fitted on the regular season and playoffs together
-  rapm: {
+  openrapm: {
     source: "openrapm",
     dataset: "openrapm",
     kinds: false,
     credit: "OpenRAPM",
+  },
+  // each day's ratings from the games before it, older games weighted
+  // less, over the regular season and playoffs together
+  yarapm: {
+    source: "yarapm",
+    dataset: "ratings_daily",
+    kinds: false,
+    credit: "yarapm",
+    catalog: "yarapm",
+    daily: true,
   },
   epm: {
     source: "dunksandthrees",
@@ -51,7 +71,7 @@ const sources = {
     kinds: true,
     credit: "dunksandthrees.com",
   },
-}
+} satisfies Record<string, Source>
 type Src = keyof typeof sources
 
 // A stat: `get` is a player's value, from their row in the stat's dataset,
@@ -201,8 +221,10 @@ const stats: Record<string, Stat> = {
   },
   o_net: netPer100("o", "Offensive net points per 100", "O-NET"),
   d_net: netPer100("d", "Defensive net points per 100", "D-NET"),
-  o_rapm: rating("rapm", "o_rating", "Offensive RAPM", "O-RAPM"),
-  d_rapm: rating("rapm", "d_rating", "Defensive RAPM", "D-RAPM"),
+  o_openrapm: rating("openrapm", "o_rating", "Offensive RAPM", "O-RAPM"),
+  d_openrapm: rating("openrapm", "d_rating", "Defensive RAPM", "D-RAPM"),
+  o_yarapm: rating("yarapm", "o_rating", "Offensive yarapm", "O-YARAPM"),
+  d_yarapm: rating("yarapm", "d_rating", "Defensive yarapm", "D-YARAPM"),
   o_epm: rating("epm", "o_epm", "Offensive EPM", "O-EPM"),
   d_epm: rating("epm", "d_epm", "Defensive EPM", "D-EPM"),
 }
@@ -356,14 +378,25 @@ const pairs: Record<string, Pair> = {
     corners: ends,
     total: true,
   },
-  rapm: {
-    name: "RAPM",
+  openrapm: {
+    name: "OpenRAPM",
     group: "Offense and defense",
-    x: "o_rapm",
-    y: "d_rapm",
+    x: "o_openrapm",
+    y: "d_openrapm",
     volume: "min",
     volumeName: "regular season minutes",
     deck: "Defensive by offensive RAPM, points per 100 possessions,",
+    corners: ends,
+    total: true,
+  },
+  yarapm: {
+    name: "yarapm",
+    group: "Offense and defense",
+    x: "o_yarapm",
+    y: "d_yarapm",
+    volume: "min",
+    volumeName: "regular season minutes",
+    deck: "Defensive by offensive yarapm, points per 100 possessions, each player's latest rating",
     corners: ends,
     total: true,
   },
@@ -435,7 +468,11 @@ function teamColors(abbrev: string): [string, string] {
   return [c[0] ?? color.ink, c[1] ?? color.bg]
 }
 
-const pairOf = (id: string) => pairs[id] ?? pairs[defaults.pair]
+// pairs that were renamed, so old links still work
+const renamed: Record<string, string> = { rapm: "openrapm" }
+const pairId = (id: string) =>
+  pairs[id] ? id : pairs[renamed[id]] ? renamed[id] : defaults.pair
+const pairOf = (id: string) => pairs[pairId(id)]
 
 // the highlighted teams, from a comma-separated param
 const picked = (p: P) => p.team.split(",").filter(Boolean)
@@ -467,14 +504,16 @@ export const scatter: Tool<P, D> = {
   defaults,
 
   async load(p) {
-    const id = pairs[p.pair] ? p.pair : defaults.pair
+    const id = pairId(p.pair)
     const pair = pairs[id]
     const [sx, sy] = [stats[pair.x], stats[pair.y]]
     const srcs = [...new Set<Src>(["stats", srcOf(sx), srcOf(sy)])]
     // the seasons every dataset the pair reads has, and the span nearest
     // the one asked for
-    const meta = await metadata()
-    const info = srcs.map(s => meta[sources[s].dataset])
+    const metas = await Promise.all(
+      srcs.map(s => metadata((sources[s] as Source).catalog)),
+    )
+    const info = srcs.map((s, i) => metas[i][sources[s].dataset])
     const first = max(info, m => m.first_season)!
     const last = min(info, m => m.last_season)!
     const clamp = (s: number) => Math.min(last, Math.max(first, s))
@@ -489,7 +528,11 @@ export const scatter: Tool<P, D> = {
     const cols = new Map<Src, Set<string>>(
       srcs.map(s => [
         s,
-        new Set(["player_id", ...(sources[s].kinds ? ["season_type"] : [])]),
+        new Set([
+          "player_id",
+          ...(sources[s].kinds ? ["season_type"] : []),
+          ...((sources[s] as Source).daily ? ["as_of_date"] : []),
+        ]),
       ]),
     )
     for (const c of ["team_id", "team_count", "gp", "min", pair.volume])
@@ -534,6 +577,16 @@ export const scatter: Tool<P, D> = {
           lkTo.teams.get(teamId)?.nba_abbrev ??
           lk.teams.get(teamId)?.nba_abbrev ??
           ""
+        // a daily dataset's last day: a finished season's final ratings
+        for (const s of srcs) {
+          if (!(sources[s] as Source).daily) continue
+          const rows = data.get(s)!
+          const day = max(rows, r => +r.as_of_date)
+          data.set(
+            s,
+            rows.filter(r => +r.as_of_date === day),
+          )
+        }
         const rowsOf = (s: Src) =>
           sources[s].kinds
             ? data.get(s)!.filter(r => r.season_type === kind)
