@@ -1,0 +1,19 @@
+---
+import Base from "../layouts/Base.astro"
+const base = import.meta.env.BASE_URL.replace(/\/?$/, "/")
+---
+
+<Base title="What changed" description="The chart from the note on players whose game changed, to annotate and export">
+  <h1>What changed</h1>
+  <p class="lede">
+    The chart from <a href={`${base}notes/2026-11-11-changes`}>the note</a>,
+    to annotate and export.
+  </p>
+  <div id="tool"></div>
+</Base>
+
+<script>
+  import { mount } from "../kit/mount"
+  import { changes } from "../sketches/changes"
+  mount(document.getElementById("tool")!, changes)
+</script>
