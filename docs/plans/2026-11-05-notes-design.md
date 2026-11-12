@@ -8,7 +8,10 @@ says what they're for; this is how.
 
 - A Markdown file, `src/notes/<date>-<slug>.md`, in the `notes` content
   collection (`src/content.config.ts`). Frontmatter: `title`, `deck`,
-  `date`, and `chart`, the sketch it embeds. The body is prose and tables,
+  `date`, and `chart`, the sketch it embeds. `date` is when it was
+  written, with the time and its offset (`2026-11-12T08:50:00-05:00`):
+  notes sort by it, newest first, so two from one day need the time.
+  Datelines show its day in Eastern time. The body is prose and tables,
   no JS.
 - `src/pages/notes/[slug].astro` renders it: agate dateline, headline,
   serif deck, the chart through the kit's `embed()`, then the body in a

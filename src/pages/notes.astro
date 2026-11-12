@@ -10,7 +10,8 @@ const fmt = (d: Date) =>
     month: "short",
     day: "numeric",
     year: "numeric",
-    timeZone: "UTC",
+    // the day it was written where it was written
+    timeZone: "America/New_York",
   })
 ---
 
@@ -20,7 +21,7 @@ const fmt = (d: Date) =>
   <ul class="index">
     {notes.map(n => (
       <li>
-        <time datetime={n.data.date.toISOString().slice(0, 10)}>{fmt(n.data.date)}</time>
+        <time datetime={n.data.date.toISOString()}>{fmt(n.data.date)}</time>
         <h2><a href={`${base}notes/${n.id}`}>{n.data.title}</a></h2>
         <p>{n.data.deck}</p>
       </li>

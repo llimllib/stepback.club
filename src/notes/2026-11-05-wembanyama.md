@@ -1,7 +1,7 @@
 ---
 title: "Wembanyama, at both ends"
 deck: "52 points, 24 rebounds and 8 blocks against Dallas, and no game since 2018 has been as good on offense and defense at once."
-date: 2026-11-05
+date: 2026-11-05T13:06:00-05:00
 chart: wemby
 ---
 

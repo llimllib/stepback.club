@@ -10,6 +10,9 @@ const notes = defineCollection({
   schema: z.object({
     title: z.string(),
     deck: z.string(),
+    // when it was written, with the time and its offset
+    // (2026-11-12T08:50:00-05:00): notes sort by it, newest first, and two
+    // from one day need the time to sort
     date: z.coerce.date(),
     // the sketch the note embeds, by its name in src/sketches/index.ts
     chart: z.string().optional(),

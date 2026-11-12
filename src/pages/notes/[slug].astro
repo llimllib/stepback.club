@@ -15,13 +15,14 @@ const dateline = date.toLocaleDateString("en-US", {
   month: "short",
   day: "numeric",
   year: "numeric",
-  timeZone: "UTC",
+  // the day it was written where it was written
+  timeZone: "America/New_York",
 })
 ---
 
 <Base title={title} description={deck}>
   <article class="note-page">
-    <time datetime={date.toISOString().slice(0, 10)}>{dateline}</time>
+    <time datetime={date.toISOString()}>{dateline}</time>
     <h1>{title}</h1>
     <p class="lede">{deck}</p>
     {chart && <figure class="note-chart" data-chart={chart} data-name={note.id}></figure>}
