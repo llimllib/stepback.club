@@ -86,7 +86,8 @@ export interface Body {
 }
 
 export interface LegendItem {
-  // line: a series over time. dotline: one known only at its dots
+  // line: a series over time. dotline: one known only at its dots. rule:
+  // a solid reference line, dash: a dashed one
   symbol:
     | "dot"
     | "diamond"
@@ -94,6 +95,7 @@ export interface LegendItem {
     | "tick"
     | "bar"
     | "dash"
+    | "rule"
     | "line"
     | "dotline"
   color: string

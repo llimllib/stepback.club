@@ -39,8 +39,11 @@ const titleOf = (a: Axis, better: "up" | "right") =>
 //   where zero is average
 // - diff: the average lines, and lines of constant x − y, for a side of the
 //   ball against its opposite: the net
+// - identity: the line y = x, for two stats in the same units where y
+//   should be x: the axes share a domain, so it runs corner to corner
 export type Guide =
   | { kind: "average" }
+  | { kind: "identity" }
   | { kind: "ratios"; ratios: number[]; zero?: boolean }
   | { kind: "sum" }
   | { kind: "diff"; name: (c: number) => string }
@@ -91,7 +94,7 @@ export function scatterPlot(
   const bottom = 48
   const top = 20
   // lines across the plot are named in a gutter on the right
-  const right = guide.kind === "average" ? 0 : 30
+  const right = guide.kind === "average" || guide.kind === "identity" ? 0 : 30
   const plotW = o.size.width - left - right
   const height = o.size.height ?? Math.round(plotW * 0.82) + top + bottom
   const plotH = height - top - bottom
@@ -99,9 +102,20 @@ export function scatterPlot(
   // ratios start at zero, where their lines meet, and a sum shows zero, its
   // average; the rest show their averages
   const atZero =
-    (guide.kind === "ratios" && guide.zero !== false) || guide.kind === "sum"
-  const [x0, x1] = extent([...o.xs, atZero ? 0 : o.league.x])
-  const [y0, y1] = extent([...o.ys, atZero ? 0 : o.league.y])
+    (guide.kind === "ratios" && guide.zero !== false) ||
+    guide.kind === "sum" ||
+    guide.kind === "identity"
+  const same = guide.kind === "identity"
+  const [x0, x1] = extent([
+    ...o.xs,
+    ...(same ? o.ys : []),
+    atZero ? 0 : o.league.x,
+  ])
+  const [y0, y1] = extent([
+    ...o.ys,
+    ...(same ? o.xs : []),
+    atZero ? 0 : o.league.y,
+  ])
   const xr = [o.inset, plotW - o.inset]
   const yr = [plotH - o.inset, o.inset]
   const x = scaleLinear()
@@ -232,6 +246,19 @@ export function scatterPlot(
       if (xb - xa < (X1 - X0) / 20) continue
       line([xa, xa - c], [xb, xb - c], guide.name(c))
     }
+  } else if (guide.kind === "identity") {
+    // stronger than the grid, as it's what the chart is about; weaker than
+    // zero
+    const lo = Math.max(X0, Y0)
+    const hi = Math.min(X1, Y1)
+    guides
+      .append("line")
+      .attr("x1", x(lo))
+      .attr("y1", y(lo))
+      .attr("x2", x(hi))
+      .attr("y2", y(hi))
+      .attr("stroke", color.muted)
+      .attr("stroke-width", 1.25)
   } else averages()
 
   // zero is the strongest line on a signed axis

@@ -357,6 +357,16 @@ function drawSymbol(g: G, item: LegendItem, cy: number) {
       .attr("stroke-width", 1.75)
     return 10
   }
+  if (item.symbol === "rule") {
+    // a solid reference line, as a scatter's diagonal is drawn
+    g.append("line")
+      .attr("x2", 22)
+      .attr("y1", cy)
+      .attr("y2", cy)
+      .attr("stroke", item.color)
+      .attr("stroke-width", 1.25)
+    return 22
+  }
   if (item.symbol === "dash") {
     // a reference line, drawn as the chart draws it
     g.append("line")
