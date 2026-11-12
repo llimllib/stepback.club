@@ -49,14 +49,19 @@ await page.waitForSelector("svg.frame", { timeout: 30_000 })
 console.error(`chart rendered in ${Date.now() - t0}ms`)
 
 if (dom) {
-  await page.locator("#tool").screenshot({ path: out })
+  // a tool's page, or a note's
+  await page.locator("#tool, .note-page").first().screenshot({ path: out })
 } else {
   const [download] = await Promise.all([
     page.waitForEvent("download"),
     page.click("button.export"),
   ])
   await download.saveAs(out)
-  const status = await page.locator(".status").textContent()
+  // a tool's status line, or the one beside a note's Export PNG button
+  const status = await page
+    .locator(".tool .status, .export-row [role=status]")
+    .first()
+    .textContent()
   if (status) console.error(status)
 }
 console.log(out)

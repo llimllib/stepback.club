@@ -87,6 +87,45 @@ export async function toPng(
   return { blob, missingImages }
 }
 
+// An Export PNG button and its status line, for a chart drawn without the
+// tool's rail, as in a note. It exports whichever frame `chart` holds when
+// clicked, so a redrawn frame is the one exported
+export function exportRow(chart: HTMLElement, name: string): HTMLElement {
+  const row = document.createElement("div")
+  row.className = "export-row"
+  const button = document.createElement("button")
+  button.type = "button"
+  button.className = "export"
+  button.textContent = "Export PNG"
+  const note = document.createElement("span")
+  note.setAttribute("role", "status")
+  row.append(button, note)
+  // the site root, for fetching fonts
+  const base = new URL(
+    import.meta.env.BASE_URL.replace(/\/?$/, "/"),
+    location.href,
+  ).href
+  button.addEventListener("click", async () => {
+    const svg = chart.querySelector<SVGSVGElement>("svg")
+    if (!svg) return
+    button.disabled = true
+    note.textContent = "Exporting…"
+    try {
+      const { blob, missingImages } = await toPng(svg, base)
+      download(blob, `${name}.png`)
+      note.textContent = missingImages
+        ? `Exported, but ${missingImages} images couldn't be embedded (no CORS)`
+        : ""
+    } catch (e) {
+      console.error(e)
+      note.textContent = "Couldn't export"
+    } finally {
+      button.disabled = false
+    }
+  })
+  return row
+}
+
 export function download(blob: Blob, name: string) {
   const a = document.createElement("a")
   a.href = URL.createObjectURL(blob)

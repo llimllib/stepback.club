@@ -22,6 +22,10 @@ says what they're for; this is how.
   note's path, so the exported PNG prints the note's URL.
 - A sketch also gets an unlisted page (`src/pages/<name>.astro`) with the
   full tool rail, to annotate and export it.
+- Every note's chart has an Export PNG button under it, once it's drawn
+  (`exportRow` in `kit/export.ts`), saving `<date>-<slug>.png`. It exports
+  the chart as the note shows it; to annotate first, use the sketch's page.
+  `npm run shot -- notes/<date>-<slug>` clicks it.
 
 ## Frozen data
 

@@ -1561,6 +1561,11 @@ time {
   aspect-ratio: 720 / 790;
 }
 
+/* its Export PNG button, close under it */
+.note-chart + .export-row {
+  margin-top: -1rem;
+}
+
 .note-chart svg {
   display: block;
   width: 100%;
