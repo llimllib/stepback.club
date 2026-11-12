@@ -7,6 +7,7 @@
 import { max, mean, scaleLinear, select } from "d3"
 import { metadata, read } from "../kit/data"
 import { agate, logoUrl } from "../kit/frame"
+import { nudge } from "../kit/strip"
 import { color, font, type } from "../kit/theme"
 import type { Body, Mark, Tool } from "../kit/tool"
 
@@ -697,21 +698,14 @@ export const efficiency: Tool<P, D> = {
     }
     // nudge colliding logos sideways, nearest the middle first
     const mid = sx0 + 30 + (stripW - 30) / 2
-    const placed: { x: number; y: number }[] = []
-    for (const t of ts) {
+    const xs = nudge(
+      ts.map(t => sy(t[sortKey])),
+      mid,
+      size2,
+    )
+    ts.forEach((t, i) => {
       const y = sy(t[sortKey])
-      let x = mid
-      for (let k = 0; k < 40; k++) {
-        const off = Math.ceil(k / 2) * (size2 * 0.55) * (k % 2 ? 1 : -1)
-        x = mid + off
-        if (
-          !placed.some(
-            q => Math.abs(q.x - x) < size2 && Math.abs(q.y - y) < size2,
-          )
-        )
-          break
-      }
-      placed.push({ x, y })
+      const x = xs[i]
       strip
         .append("image")
         .attr("href", logoUrl(t.abbrev))
@@ -728,7 +722,7 @@ export const efficiency: Tool<P, D> = {
         r: size2 / 2,
         label: `${t.abbrev} ${signed(t[sortKey])}`,
       })
-    }
+    })
 
     if (!ts.length)
       g.append("text")

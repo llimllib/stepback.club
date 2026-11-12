@@ -1,0 +1,19 @@
+---
+import Base from "../layouts/Base.astro"
+const base = import.meta.env.BASE_URL.replace(/\/?$/, "/")
+---
+
+<Base title="Five ways to rate a team" description="The chart from the note on five ways to rate a team, to annotate and export">
+  <h1>Five ways to rate a team</h1>
+  <p class="lede">
+    The chart from <a href={`${base}notes/2026-11-12-five-ways`}>the note</a>,
+    to annotate and export.
+  </p>
+  <div id="tool"></div>
+</Base>
+
+<script>
+  import { mount } from "../kit/mount"
+  import { fiveways } from "../sketches/fiveways"
+  mount(document.getElementById("tool")!, fiveways)
+</script>
