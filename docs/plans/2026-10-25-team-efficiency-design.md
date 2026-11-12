@@ -53,7 +53,7 @@ A table, one row per team, sorted by net, offense or defense:
 Five, the most allowed:
 
 - **Season**
-- **Source**: NBA.com, Cleaning the Glass, or yarapm's RAPM (see below).
+- **Source**: NBA.com, Cleaning the Glass, yarapm's RAPM or dunksandthrees' EPM (see below).
   They're the same chart over a different definition (CTG removes garbage
   time), so one tool; switching between them shows which teams garbage
   time flatters.
@@ -92,6 +92,24 @@ season, the day after the Finals for a past one, from 2011–12 on.
 - The records are the NBA's regular season's, as for NBA.com.
 - The average is yarapm's league average, which the plain mean of the
   teams' ratings comes back to, as theirs are against the average team.
+
+## EPM (2026-11-12)
+
+A fifth source, **EPM, Dunks & Threes**, from dunksandthrees' `team_epm`
+(`nba/dunksandthrees/`): each team's offense, defense and net from its
+players' EPM weighted by the minutes they're expected to play over the
+rest of the season, counting known injuries (the site's "Typical
+Rotation"). It's a rating as of a day like RAPM, so it's titled **Team
+strength**, with no Playoffs toggle or Games control, and the NBA's
+regular-season records.
+
+- Only the latest day's ratings are free, so it starts with 2026–27 and
+  has no past seasons.
+- The ratings are against a season average with no league rating, so
+  they're put on the NBA.com scale: the average is the plain mean of the
+  teams' NBA.com regular-season ratings. The ratings needn't average 0 on
+  a day, so the chart's zero (the mean of the teams shown) can sit a
+  little off theirs.
 
 ## Not done
 

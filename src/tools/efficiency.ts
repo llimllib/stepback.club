@@ -1,7 +1,8 @@
 // Team efficiency: every team's net, offensive and defensive rating as a
 // table ranked by one of them, with a strip of logos beside it on a true
 // scale, so the gaps the ranking hides show. The ratings are its results
-// (NBA.com, Cleaning the Glass) or its players' RAPM (yarapm). See
+// (NBA.com, Cleaning the Glass) or its players' ratings (yarapm's RAPM,
+// dunksandthrees' EPM). See
 // docs/plans/2026-10-25-team-efficiency-design.md
 import { max, mean, scaleLinear, select } from "d3"
 import { metadata, read } from "../kit/data"
@@ -28,10 +29,17 @@ const columns: { key: Key; label: string }[] = [
   { key: "def", label: "Defense" },
 ]
 
-// `catalog` is where the dataset is: nba_data's, or yarapm's
+// `catalog` is where the dataset is: nba_data's, or yarapm's. A `rating`
+// is a team's players' ratings as of a day, not its results over games
 const sources: Record<
   string,
-  { label: string; dataset: string; catalog?: "yarapm"; credit?: string }
+  {
+    label: string
+    dataset: string
+    catalog?: "yarapm"
+    credit?: string
+    rating?: true
+  }
 > = {
   nba: { label: "NBA.com", dataset: "team_game_logs" },
   ctg: { label: "Cleaning the Glass", dataset: "ctg_team_summary" },
@@ -40,15 +48,23 @@ const sources: Record<
     dataset: "team_ratings_daily",
     catalog: "yarapm",
     credit: "yarapm",
+    rating: true,
   },
   rapm_today: {
     label: "RAPM, expected lineup",
     dataset: "team_ratings_daily",
     catalog: "yarapm",
     credit: "yarapm",
+    rating: true,
+  },
+  epm: {
+    label: "EPM, Dunks & Threes",
+    dataset: "team_epm",
+    credit: "Dunks & Threes",
+    rating: true,
   },
 }
-const isRapm = (source: string) => sources[source].catalog === "yarapm"
+const isRating = (source: string) => !!sources[source].rating
 
 interface Team {
   abbrev: string
@@ -253,6 +269,44 @@ async function loadRapm(season: number, p: P, full: boolean) {
   }
 }
 
+// A team-season's ratings from dunksandthrees: its players' EPM weighted by
+// their expected minutes over the rest of the season, as of the site's
+// latest day. They're against a season average, so they're put on the
+// NBA's scale with its league average, the plain mean of the teams'
+// regular-season ratings; the records are the NBA's too
+async function loadEpm(season: number, p: P) {
+  const [ratings, nba] = await Promise.all([
+    read("dunksandthrees", "team_epm", season, [
+      "as_of_date",
+      "team_id",
+      "o_epm",
+      "d_epm",
+    ]),
+    loadNba(season, { ...p, playoffs: false, last: "" }),
+  ])
+  const league = mean(nba.rows, r => (r.ortg + r.drtg) / 2) ?? 0
+  const records = new Map(nba.rows.map(r => [r.team_id, r]))
+  return {
+    rows: ratings.map(r => {
+      const games = records.get(r.team_id)
+      return {
+        team_id: r.team_id as string,
+        ortg: league + r.o_epm,
+        // a positive d_epm is a good defense: fewer points allowed
+        drtg: league - r.d_epm,
+        games: games?.games ?? 0,
+        wins: games?.wins ?? 0,
+        losses: games?.losses ?? 0,
+      }
+    }),
+    windows: [{ value: "", label: "Season" }],
+    last: "",
+    through: max(ratings, r => r.as_of_date as Date),
+    playoffs: false,
+    hasPlayoffs: false,
+  }
+}
+
 // the teams in the view's order, best first
 function sorted(d: D, p: P) {
   const key = (columns.find(c => c.key === p.sort) ?? columns[0]).key
@@ -261,12 +315,15 @@ function sorted(d: D, p: P) {
   )
 }
 
-// A RAPM view says what it is: the players' ratings, not the team's results
-function describeRapm(d: D) {
-  const lineup =
+// A ratings view says what it is: the players' ratings, not the team's
+// results
+function describeRating(d: D) {
+  const whose =
     d.source === "rapm"
-      ? "at full strength, everyone available"
-      : "with its expected lineup, counting who's likely out"
+      ? "RAPM at full strength, everyone available"
+      : d.source === "rapm_today"
+        ? "RAPM with its expected lineup, counting who's likely out"
+        : "EPM, weighted by the minutes they're expected to play, counting known injuries"
   // a past season's ratings are its final ones
   const when =
     d.season === d.latest && d.through
@@ -274,7 +331,7 @@ function describeRapm(d: D) {
       : `at the end of the ${fmtSeason(d.season)} season`
   return {
     title: "Team strength",
-    context: `Points per 100 possessions better or worse than the average team, from each team's players' RAPM ${lineup}, ${when}`,
+    context: `Points per 100 possessions better or worse than the average team, from each team's players' ${whose}, ${when}`,
     legend: [
       { symbol: "bar" as const, color: color.pos, label: "+", text: "better" },
       { symbol: "bar" as const, color: color.neg, label: "−", text: "worse" },
@@ -300,9 +357,11 @@ export const efficiency: Tool<P, D> = {
     const [loaded, names] = await Promise.all([
       source === "ctg"
         ? loadCtg(season, p)
-        : isRapm(source)
-          ? loadRapm(season, p, source === "rapm")
-          : loadNba(season, p),
+        : source === "epm"
+          ? loadEpm(season, p)
+          : isRating(source)
+            ? loadRapm(season, p, source === "rapm")
+            : loadNba(season, p),
       read("stats", "team_seasons", season, [
         "team_id",
         "nba_abbrev",
@@ -409,7 +468,7 @@ export const efficiency: Tool<P, D> = {
   },
 
   describe(d) {
-    if (isRapm(d.source)) return describeRapm(d)
+    if (isRating(d.source)) return describeRating(d)
     const kind = d.playoffs ? "playoffs" : "regular season"
     const span = !d.last
       ? `in the ${fmtSeason(d.season)} ${kind}`

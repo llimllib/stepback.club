@@ -43,7 +43,7 @@ export const catalog = [
     href: "efficiency",
     name: "Team efficiency",
     blurb:
-      "Every team's offense and defense against the average, ranked, with the gaps to scale: from its results, or from its players' RAPM.",
+      "Every team's offense and defense against the average, ranked, with the gaps to scale: from its results, or from its players' RAPM or EPM.",
     hook: "Who's actually good, and by how much",
     pitch:
       "Points per 100 posessions shows you how good or bad each team is on each side of the ball",
