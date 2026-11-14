@@ -3,6 +3,13 @@
 // open the tool
 export const catalog = [
   {
+    href: "standings",
+    name: "Standings",
+    blurb:
+      "Each conference's standings, with every team's offense, defense and net rating, and how good its players are by yarapm and EPM.",
+    takes: ["Season"],
+  },
+  {
     href: "scatter",
     name: "Player charts",
     blurb:
@@ -14,6 +21,9 @@ export const catalog = [
     name: "Team charts",
     blurb:
       "One team stat against another: efficiency, pace, luck, shooting at both ends, playmaking, rebounding and defense.",
+    hook: "Who's winning more than they should?",
+    pitch:
+      "Any two team stats against each other: luck, pace, shooting at both ends, rebounding and defense.",
     takes: ["Stats", "Season", "Playoffs", "Games"],
   },
   {
@@ -37,6 +47,9 @@ export const catalog = [
     name: "RAPM over time",
     blurb:
       "A player's RAPM on each game day, as the model saw it then, over a season or a career.",
+    hook: "Watch a rating move",
+    pitch:
+      "A player's RAPM on every game day, as the model saw it then: see a breakout, or a slump, take shape.",
     takes: ["Seasons", "Rating", "Players"],
   },
   {

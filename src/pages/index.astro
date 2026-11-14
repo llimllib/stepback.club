@@ -5,9 +5,11 @@ const base = import.meta.env.BASE_URL.replace(/\/?$/, "/")
 // the lead is Player charts' shooting by usage
 const leadHref = `${base}scatter?pair=usg-ts`
 // playoff net points joins them, as the lead, once there are playoffs
-const briefs = ["efficiency", "cumulative", "rotations"].map(
-  href => catalog.find(t => t.href === href)!,
-)
+const tools = (hrefs: string[]) =>
+  hrefs.map(href => catalog.find(t => t.href === href)!)
+const briefs = tools(["efficiency", "cumulative", "rotations"])
+// two smaller ones under the lead chart, beside the caption's boards
+const kickers = tools(["teams", "rapm"])
 ---
 
 <Base title="Now">
@@ -45,6 +47,22 @@ const briefs = ["efficiency", "cumulative", "rotations"].map(
           <a class="more" id="ahead-more" href={`${base}scores`}>Predictions →</a>
         </aside>
       </figcaption>
+      <!-- the standings and the kickers share a row, so their rules line up -->
+      <aside class="about board lead-standings" id="standings" hidden>
+        <span class="kicker" id="standings-day">Standings</span>
+        <ul id="standings-teams"></ul>
+        <a class="more" href={`${base}standings`}>Full standings →</a>
+      </aside>
+      <section class="kickers" aria-label="Two more tools">
+        {kickers.map(t => (
+          <article>
+            <span class="kicker">{t.name}</span>
+            <h2><a id={`brief-${t.href}`} href={`${base}${t.href}`}>{t.hook}</a></h2>
+            <p>{t.pitch}</p>
+            <a class="more" href={`${base}${t.href}`}>{t.takes.join(" · ")} →</a>
+          </article>
+        ))}
+      </section>
     </figure>
     <section class="briefs" aria-label="More tools">
       {briefs.map(t => (
@@ -66,9 +84,12 @@ const briefs = ["efficiency", "cumulative", "rotations"].map(
     cumulativeBrief,
     efficiencyBrief,
     rotationsBrief,
+    standingsBoard,
+    teamsBrief,
     type Brief,
   } from "../tools/briefs"
   import { latestNight, today } from "../scores/load"
+  import type { Team } from "../tools/standings"
   import { nextNight } from "../scores/predict"
 
   const pct = (v: number) => `${(v * 100).toFixed(1)}%`
@@ -93,6 +114,7 @@ const briefs = ["efficiency", "cumulative", "rotations"].map(
     ["efficiency", efficiencyBrief],
     ["cumulative", cumulativeBrief],
     ["rotations", rotationsBrief],
+    ["teams", teamsBrief],
   ]
   // last night's scores, under the caption
   latestNight()
@@ -167,6 +189,43 @@ const briefs = ["efficiency", "cumulative", "rotations"].map(
         }),
       )
       document.getElementById("ahead")!.hidden = false
+    })
+    .catch(e => console.error(e))
+
+  // a standings board's conference head, or a blank cell
+  const confHead = (text: string) => {
+    const li = document.createElement("li")
+    li.className = "conf"
+    li.textContent = text
+    return li
+  }
+  // seed, team and record, padded so the columns of the monospaced lines
+  // align
+  const standingsLine = (t: Team, i: number) => {
+    const li = document.createElement("li")
+    li.textContent = `${String(i + 1).padStart(2)} ${t.abbrev} ${String(t.wins).padStart(2)}-${t.losses}`
+    return li
+  }
+
+  // the top of each conference, East on the left, under the predictions
+  standingsBoard()
+    .then(({ through, east, west }) => {
+      if (!east.length || !west.length) return
+      if (through)
+        document.getElementById("standings-day")!.textContent =
+          `Standings · ${through.toLocaleDateString("en-US", {
+            timeZone: "UTC",
+            month: "short",
+            day: "numeric",
+          })}`
+      const rows = [confHead("East"), confHead("West")]
+      for (let i = 0; i < Math.max(east.length, west.length); i++)
+        rows.push(
+          east[i] ? standingsLine(east[i], i) : confHead(""),
+          west[i] ? standingsLine(west[i], i) : confHead(""),
+        )
+      document.getElementById("standings-teams")!.replaceChildren(...rows)
+      document.getElementById("standings")!.hidden = false
     })
     .catch(e => console.error(e))
 

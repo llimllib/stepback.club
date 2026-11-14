@@ -1,0 +1,20 @@
+---
+import Base from "../layouts/Base.astro"
+---
+
+<Base title="Standings" description="Each conference's standings, with every team's offense, defense and net rating, and its strength by yarapm and EPM">
+  <h1>Standings</h1>
+  <p class="lede">
+    Each conference's standings, with how each team has played, per 100
+    possessions, and how good its players are, by yarapm and EPM. The six
+    teams above the solid line go to the playoffs; the next four, down to
+    the dashed one, to the play-in.
+  </p>
+  <div id="tool"></div>
+</Base>
+
+<script>
+  import { mount } from "../kit/mount"
+  import { standings } from "../tools/standings"
+  mount(document.getElementById("tool")!, standings)
+</script>

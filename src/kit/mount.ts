@@ -50,12 +50,14 @@ export async function mount<P extends Params, D>(
   // question controls, the chart, then framing and export: a rail beside the
   // chart on wide screens, in that order down the page on narrow ones
   root.classList.add("tool")
+  const allowed = tool.sizes ?? (Object.keys(sizes) as Size[])
   root.innerHTML = `
     <form class="controls"></form>
     <div class="chart-host"><div class="chart"></div><div class="status"></div>
       <div class="reloading">${loadingText()}</div></div>
     <div class="actions">
-      <fieldset class="sizes"><legend>Size</legend>${Object.entries(sizes)
+      <fieldset class="sizes"${allowed.length < 2 ? " hidden" : ""}><legend>Size</legend>${allowed
+        .map(k => [k, sizes[k]] as const)
         .map(
           ([k, s]) =>
             `<button type="button" data-size="${k}">${s.label}</button>`,
@@ -122,7 +124,9 @@ export async function mount<P extends Params, D>(
     // the printed URL names the tool, not the view: a reader types it in
     // from an image, and a query string is too long to type
     const url = `${SITE}/${tool.id}`
-    const size = (p.size in sizes ? p.size : "auto") as Size
+    const size = (
+      allowed.includes(p.size as Size) ? p.size : allowed[0]
+    ) as Size
     // the chart's own controls work only when a click isn't for a note
     const fromChart = (patch: Partial<P>) => {
       if (mode === "select") set(patch as Params)

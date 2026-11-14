@@ -5,6 +5,8 @@
 import { lookups, metadata, read } from "../kit/data"
 import { cumulative } from "./cumulative"
 import { efficiency } from "./efficiency"
+import { ordered, results } from "./standings"
+import { byTeam, teamGames, type TeamGame } from "./team-ratings"
 
 export interface Brief {
   headline: string
@@ -42,30 +44,55 @@ export async function efficiencyBrief(): Promise<Brief | undefined> {
   }
 }
 
+const margin = (g: TeamGame) => g.pts - g.allowed
+
+// the team furthest from the wins its points predict, as on the team
+// charts' luck pair: the Pythagorean formula with bbref's exponent, over
+// the regular season's games with possessions
+export async function teamsBrief(): Promise<Brief | undefined> {
+  const meta = await metadata()
+  const season = meta.team_game_logs.last_season
+  const [games, names] = await Promise.all([
+    teamGames(season),
+    read("stats", "team_seasons", season, [
+      "team_id",
+      "nba_abbrev",
+      "full_name",
+    ]),
+  ])
+  const teams = byTeam(
+    games.filter(g => g.game_type === "regular_season" && g.poss > 0),
+  )
+  let top: { id: string; luck: number } | undefined
+  for (const [id, list] of teams) {
+    const pts = list.reduce((n, g) => n + g.pts, 0)
+    const allowed = list.reduce((n, g) => n + g.allowed, 0)
+    const wins = list.filter(g => g.pts > g.allowed).length
+    const luck = wins - list.length / (1 + (allowed / pts) ** 14)
+    if (!top || Math.abs(luck) > Math.abs(top.luck)) top = { id, luck }
+  }
+  const name = names.find(t => t.team_id === top?.id)?.full_name
+  if (!top || !name || Math.abs(top.luck) < 0.5) return
+  const n = Math.abs(top.luck).toFixed(1)
+  return {
+    headline:
+      top.luck > 0
+        ? `The ${name} have won ${n} more games than their scoring predicts`
+        : `The ${name} have won ${n} fewer games than their scoring predicts`,
+    query: "pair=luck",
+  }
+}
+
 // the closest game on the latest day with games
 export async function rotationsBrief(): Promise<Brief | undefined> {
   const meta = await metadata()
   const season = meta.team_game_logs.last_season
-  // the columns efficiency reads, so this is the same read
-  const [logs, games, lk] = await Promise.all([
-    read("stats", "team_game_logs", season, [
-      "game_id",
-      "team_id",
-      "game_date",
-      "pts",
-      "plus_minus",
-      "poss",
-    ]),
-    read("stats", "games", season, ["game_id", "game_type"]),
-    lookups(season),
-  ])
-  const type = new Map(games.map(g => [g.game_id, g.game_type as string]))
-  const played = logs.filter(r => type.get(r.game_id) !== "preseason")
-  const latest = Math.max(...played.map(r => +r.game_date))
-  const day = played.filter(r => +r.game_date === latest && r.plus_minus > 0)
-  const close = day.sort(
-    (a, b) => a.plus_minus - b.plus_minus || b.pts - a.pts,
-  )[0]
+  // efficiency's and standings' read, so the front page reads it once
+  const [games, lk] = await Promise.all([teamGames(season), lookups(season)])
+  const played = games.filter(g => g.game_type !== "preseason")
+  const latest = Math.max(...played.map(g => +g.game_date))
+  const day = played.filter(g => +g.game_date === latest && margin(g) > 0)
+  const close = day.sort((a, b) => margin(a) - margin(b) || b.pts - a.pts)[0]
   if (!close) return
   const abbrev = (id: string) => lk.teams.get(id)?.nba_abbrev ?? ""
   const loser = played.find(
@@ -95,4 +122,16 @@ export async function cumulativeBrief(): Promise<Brief | undefined> {
     headline: `${name} leads the league in net points: ${signed(top.v)} in ${games}`,
     query: "",
   }
+}
+
+// the top of each conference's standings, for the front page's board: the
+// six in the playoffs, or the eight before the play-in
+export async function standingsBoard() {
+  const meta = await metadata()
+  const season = meta.team_game_logs.last_season
+  const { teams, through } = await results(season)
+  const top = season >= 2021 ? 6 : 8
+  const conf = (c: string) =>
+    ordered(teams.filter(t => t.conf === c)).slice(0, top)
+  return { through, east: conf("East"), west: conf("West") }
 }

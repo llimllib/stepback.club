@@ -8,6 +8,13 @@ import { max, mean, scaleLinear, select } from "d3"
 import { metadata, read } from "../kit/data"
 import { agate, logoUrl } from "../kit/frame"
 import { nudge } from "../kit/strip"
+import {
+  byTeam,
+  epmRatings,
+  rapmRatings,
+  summed,
+  teamGames,
+} from "./team-ratings"
 import { color, font, type } from "../kit/theme"
 import type { Body, Mark, Tool } from "../kit/tool"
 
@@ -120,35 +127,19 @@ function signed(v: number) {
 // a team's record, after its abbreviation: " (4-1)"
 const record = (t: Team) => ` (${t.wins}-${t.losses})`
 
-// one team-season's games in the window, summed: the NBA's way, so a
-// blowout counts by its possessions, not as one game in an average
+// one team-season's games in the window, summed
 async function loadNba(season: number, p: P) {
-  const [logs, games] = await Promise.all([
-    read("stats", "team_game_logs", season, [
-      "game_id",
-      "team_id",
-      "game_date",
-      "pts",
-      "plus_minus",
-      "poss",
-    ]),
-    read("stats", "games", season, ["game_id", "game_type"]),
-  ])
-  const gameType = new Map(games.map(g => [g.game_id, g.game_type as string]))
+  const all = await teamGames(season)
   // the play-in goes with the playoffs, as it does at CTG. A season with
   // none played yet has no playoffs to show
   const post = ["playoffs", "play_in"]
-  const hasPlayoffs = logs.some(r => post.includes(gameType.get(r.game_id)!))
+  const hasPlayoffs = all.some(g => post.includes(g.game_type))
   const playoffs = p.playoffs && hasPlayoffs
   const kinds = playoffs ? post : ["regular_season"]
-  const byTeam = new Map<string, typeof logs>()
-  for (const r of logs) {
-    if (!kinds.includes(gameType.get(r.game_id)!) || !(r.poss > 0)) continue
-    let list = byTeam.get(r.team_id)
-    if (!list) byTeam.set(r.team_id, (list = []))
-    list.push(r)
-  }
-  const most = max([...byTeam.values()], l => l.length) ?? 0
+  const teams = byTeam(
+    all.filter(g => kinds.includes(g.game_type) && g.poss > 0),
+  )
+  const most = max([...teams.values()], l => l.length) ?? 0
   // every fifth game short of the most played, then the whole season
   const windows = []
   for (let n = 5; n < most; n += 5)
@@ -157,25 +148,11 @@ async function loadNba(season: number, p: P) {
   const last = windows.some(w => w.value === p.last) ? p.last : ""
 
   let through: Date | undefined
-  const rows = [...byTeam].map(([team_id, list]) => {
+  const rows = [...teams].map(([team_id, list]) => {
     list.sort((a, b) => +b.game_date - +a.game_date)
-    const used = last ? list.slice(0, Number(last)) : list
-    let [pts, allowed, poss, wins] = [0, 0, 0, 0]
-    for (const r of used) {
-      pts += r.pts
-      allowed += r.pts - r.plus_minus
-      poss += r.poss
-      if (r.plus_minus > 0) wins++
-      if (!through || r.game_date > through) through = r.game_date
-    }
-    return {
-      team_id,
-      ortg: (100 * pts) / poss,
-      drtg: (100 * allowed) / poss,
-      games: used.length,
-      wins,
-      losses: used.length - wins,
-    }
+    const s = summed(last ? list.slice(0, Number(last)) : list)
+    if (s.through && (!through || s.through > through)) through = s.through
+    return { team_id, ...s }
   })
   return { rows, windows, last, through, playoffs, hasPlayoffs }
 }
@@ -226,75 +203,27 @@ async function loadCtg(season: number, p: P) {
   }
 }
 
-// A team-season's ratings from its players' RAPM, as of yarapm's latest
-// day: its last build for this season, the day after the Finals for a past
-// one. At full strength, everyone available, or with the expected lineup,
-// counting who's likely out. They're already against the average team; the
-// records are the NBA's, the regular season's
-async function loadRapm(season: number, p: P, full: boolean) {
+// A team-season's ratings from its players' RAPM or EPM, put on the NBA's
+// scale: yarapm's with its own league average, EPM's, which are against a
+// season average, with the NBA's, the plain mean of the teams'
+// regular-season ratings. The records are the NBA's, the regular season's
+async function loadRatings(season: number, p: P, source: string) {
   const [ratings, nba] = await Promise.all([
-    read("yarapm", "team_ratings_daily", season, [
-      "as_of_date",
-      "team_id",
-      "off",
-      "def",
-      "full_off",
-      "full_def",
-      "league_average",
-    ]),
+    source === "epm"
+      ? epmRatings(season)
+      : rapmRatings(season, source === "rapm"),
     loadNba(season, { ...p, playoffs: false, last: "" }),
   ])
-  const through = max(ratings, r => r.as_of_date as Date)
-  const records = new Map(nba.rows.map(r => [r.team_id, r]))
-  const rows = ratings
-    .filter(r => +r.as_of_date === +through!)
-    .map(r => {
-      const [off, def] = full ? [r.full_off, r.full_def] : [r.off, r.def]
-      const games = records.get(r.team_id)
-      return {
-        team_id: r.team_id as string,
-        ortg: r.league_average + off,
-        drtg: r.league_average - def,
-        games: games?.games ?? 0,
-        wins: games?.wins ?? 0,
-        losses: games?.losses ?? 0,
-      }
-    })
-  return {
-    rows,
-    windows: [{ value: "", label: "Season" }],
-    last: "",
-    through,
-    playoffs: false,
-    hasPlayoffs: false,
-  }
-}
-
-// A team-season's ratings from dunksandthrees: its players' EPM weighted by
-// their expected minutes over the rest of the season, as of the site's
-// latest day. They're against a season average, so they're put on the
-// NBA's scale with its league average, the plain mean of the teams'
-// regular-season ratings; the records are the NBA's too
-async function loadEpm(season: number, p: P) {
-  const [ratings, nba] = await Promise.all([
-    read("dunksandthrees", "team_epm", season, [
-      "as_of_date",
-      "team_id",
-      "o_epm",
-      "d_epm",
-    ]),
-    loadNba(season, { ...p, playoffs: false, last: "" }),
-  ])
-  const league = mean(nba.rows, r => (r.ortg + r.drtg) / 2) ?? 0
+  const league =
+    ratings.league ?? mean(nba.rows, r => (r.ortg + r.drtg) / 2) ?? 0
   const records = new Map(nba.rows.map(r => [r.team_id, r]))
   return {
-    rows: ratings.map(r => {
-      const games = records.get(r.team_id)
+    rows: [...ratings.teams].map(([team_id, r]) => {
+      const games = records.get(team_id)
       return {
-        team_id: r.team_id as string,
-        ortg: league + r.o_epm,
-        // a positive d_epm is a good defense: fewer points allowed
-        drtg: league - r.d_epm,
+        team_id,
+        ortg: league + r.off,
+        drtg: league - r.def,
         games: games?.games ?? 0,
         wins: games?.wins ?? 0,
         losses: games?.losses ?? 0,
@@ -302,7 +231,7 @@ async function loadEpm(season: number, p: P) {
     }),
     windows: [{ value: "", label: "Season" }],
     last: "",
-    through: max(ratings, r => r.as_of_date as Date),
+    through: ratings.day,
     playoffs: false,
     hasPlayoffs: false,
   }
@@ -358,11 +287,9 @@ export const efficiency: Tool<P, D> = {
     const [loaded, names] = await Promise.all([
       source === "ctg"
         ? loadCtg(season, p)
-        : source === "epm"
-          ? loadEpm(season, p)
-          : isRating(source)
-            ? loadRapm(season, p, source === "rapm")
-            : loadNba(season, p),
+        : isRating(source)
+          ? loadRatings(season, p, source)
+          : loadNba(season, p),
       read("stats", "team_seasons", season, [
         "team_id",
         "nba_abbrev",

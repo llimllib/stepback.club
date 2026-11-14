@@ -218,6 +218,10 @@ h1 {
   flex-wrap: wrap;
 }
 
+.tool fieldset[hidden] {
+  display: none;
+}
+
 select {
   font: 1rem var(--head);
   font-weight: 600;
@@ -698,6 +702,7 @@ time {
 .lead .inset {
   grid-column: 2 / -1;
   grid-row: 1;
+  align-self: start;
   /* it holds a chart, or a note in its place, not link text */
   text-decoration: none;
   color: inherit;
@@ -707,6 +712,58 @@ time {
   grid-column: 1;
   grid-row: 1;
   padding-right: 1.25rem;
+}
+
+/* the second row: the standings under the caption, and two smaller briefs
+   under the chart. Sharing a row, their top rules line up */
+.lead-standings {
+  grid-column: 1;
+  grid-row: 2;
+  align-self: start;
+  margin-right: 1.25rem;
+}
+
+.lead-standings[hidden] {
+  display: none;
+}
+
+.kickers {
+  grid-column: 2 / -1;
+  grid-row: 2;
+  align-self: start;
+  display: grid;
+  grid-template-columns: subgrid;
+  margin-top: 1.5rem;
+  border-top: var(--rule);
+}
+
+.kickers article {
+  padding: 0.75rem 1.25rem 0;
+  border-left: var(--rule);
+}
+
+.kickers article:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.kickers h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.35rem;
+}
+
+.kickers h2 a {
+  text-decoration-thickness: 0.05em;
+  text-underline-offset: 0.12em;
+}
+
+.kickers h2 a:hover {
+  text-decoration-thickness: 0.12em;
+}
+
+.kickers p {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
 }
 
 .lead figcaption p {
@@ -838,6 +895,13 @@ time {
   color: var(--muted);
 }
 
+/* the standings' conference heads */
+.board li.conf {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .board .more {
   display: inline-block;
   margin-top: 0.5rem;
@@ -855,6 +919,28 @@ time {
     grid-column: 1;
     grid-row: auto;
     padding: 0;
+  }
+
+  .lead-standings {
+    grid-column: 1;
+    grid-row: auto;
+    margin-right: 0;
+  }
+
+  /* the kickers go after the caption, one above the other */
+  .kickers {
+    grid-column: 1;
+    grid-row: auto;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .kickers article {
+    padding: 0.75rem 0 0.5rem;
+    border-left: 0;
+  }
+
+  .kickers article + article {
+    border-top: var(--rule);
   }
 
   .lead figcaption {

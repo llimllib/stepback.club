@@ -1,7 +1,7 @@
 // The contract every tool implements. A tool says what question controls it
 // has, how to load data, and how to draw its chart into the body of a frame;
 // the kit supplies the frame, URL state, annotations and export
-import type { Versus } from "./frame"
+import type { Size, Versus } from "./frame"
 import type { Params, ParamValue } from "./state"
 
 export interface Option {
@@ -133,6 +133,9 @@ export interface Tool<P extends Params, D> {
   id: string
   name: string
   defaults: P
+  // the export sizes that make sense for the chart, if not all of them: a
+  // long table has only its own height. With one, there's no size picker
+  sizes?: Size[]
   load(p: P): Promise<D>
   // Fix up params that don't fit the data, e.g. a team with no playoff games
   normalize?(d: D, p: P): P
