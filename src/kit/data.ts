@@ -24,6 +24,24 @@ export function datasetUrl(source: string, dataset: string, season: number) {
 }
 
 const cache = new Map<string, Promise<Row[]>>()
+const files = new Map<string, ReturnType<typeof fetchFile>>()
+
+// A file, fetched once for the page: a small one (under 512KB, most of
+// them) whole, a larger one by the ranges read. Reads of different columns
+// share it, so a page whose tools want different columns of the same file
+// downloads it once
+async function fetchFile(url: string) {
+  return cachedAsyncBuffer(await asyncBufferFromUrl({ url }))
+}
+function sharedFile(url: string) {
+  let f = files.get(url)
+  if (!f) {
+    f = fetchFile(url)
+    f.catch(() => files.delete(url))
+    files.set(url, f)
+  }
+  return f
+}
 
 // Read the given columns of one season of a dataset. Results are cached for
 // the life of the page, so tools can call this freely when params change
@@ -37,10 +55,12 @@ export function read(
   const key = `${url}|${columns.join(",")}`
   let rows = cache.get(key)
   if (!rows) {
-    rows = (async () => {
-      const file = cachedAsyncBuffer(await asyncBufferFromUrl({ url }))
-      return parquetReadObjects({ file, columns, compressors })
-    })()
+    rows = (async () =>
+      parquetReadObjects({
+        file: await sharedFile(url),
+        columns,
+        compressors,
+      }))()
     rows.catch(() => cache.delete(key))
     cache.set(key, rows)
   }
