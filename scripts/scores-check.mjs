@@ -207,14 +207,25 @@ for (const width of [1100, 390]) {
     (await page.locator("#matchup").getAttribute("data-state")) === "done",
     `${await page.locator("#title").textContent()} at ${width}px loads`,
   )
+  // both teams in one mirrored table, and each alone for a phone. The
+  // team row's yarapm cell is each side's first rating: after the name and
+  // minutes, mirrored on the home side
   const tables = await page.locator("table.lineup").count()
-  const totals = await page
-    .locator("table.lineup tfoot tr:nth-child(3) td")
-    .allTextContents()
-  check(tables === 2, `it has both lineups`)
   check(
-    totals.join() === nets.join(),
-    `its net ratings are the prediction's (${totals.join(", ")})`,
+    tables === 2 && (await page.locator("table.versus").count()) === 1,
+    `it has both lineups`,
+  )
+  const cell = (table, n) =>
+    page.locator(`${table} tfoot tr.net > :nth-child(${n})`).allTextContents()
+  const alone = (await cell("table.lineup", 3)).join()
+  const versus = [
+    ...(await cell("table.versus", 3)),
+    ...(await cell("table.versus", 6)),
+  ].join()
+  check(
+    alone === nets.join() && versus === nets.join(),
+    `its yarapm net ratings are the prediction's (${nets.join(", ")}; ` +
+      `lineups ${alone}; table ${versus})`,
   )
   const wide = await page.evaluate(
     () => document.documentElement.scrollWidth - innerWidth,
