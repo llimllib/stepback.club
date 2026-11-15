@@ -34,6 +34,9 @@ or the frame.
   and phone widths, its no-games days, ESPN's or the NBA's data missing,
   and yarapm's predictions for the days ahead; saves
   `shots/scores-<width>.png` and `shots/scores-ahead-<width>.png`
+- `node scripts/team-check.mjs [team]`: checks a team's page at desktop
+  and phone widths, with yarapm, EPM or ESPN missing, an unknown team and
+  the index; saves `shots/team-<width>.png` and `shots/team-index.png`
 - `npx astro check`: type check
 - `mise run lint`: formatting (oxfmt), lints (oxlint) and types. Run it
   before every commit; `mise run fmt` fixes the formatting. Nothing else
@@ -72,6 +75,9 @@ shared code was in `docs/lib/`. Don't restore it into the tree.
   - `theme.ts`: colors, type scale, fonts
 - `src/tools/`: one module per tool
 - `src/scores/`: the scores page, which is plain HTML, not a tool
+- `src/team/`: a team's page (`/team?team=BOS`), plain HTML like the
+  scores page, with its net rating chart in the kit's frame. See
+  https://github.com/llimllib/stepback.club/issues/40
 - `src/notes/`: notes, as Markdown with their frozen data beside them;
   `src/sketches/`: the one-off charts they embed. See
   `docs/plans/2026-11-05-notes-design.md`

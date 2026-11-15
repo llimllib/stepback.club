@@ -266,6 +266,8 @@ function nameCell(p: LineupPlayer | undefined) {
   return th
 }
 
+const teamBase = import.meta.env.BASE_URL.replace(/\/?$/, "/")
+
 // a band's subhead: the team's record going in, its chance to win and
 // yarapm's expected points
 const subhead = (l: Lineup) =>
@@ -295,8 +297,15 @@ function teamHead(l: Lineup, side: "away" | "home", colSpan: number) {
       el(
         "span",
         { className: "who" },
-        el("span", { className: "tname full" }, l.team.name),
-        el("span", { className: "tname short" }, nickname(l.team.name)),
+        el(
+          "a",
+          {
+            className: "team-link",
+            href: `${teamBase}team?team=${l.team.abbrev}`,
+          },
+          el("span", { className: "tname full" }, l.team.name),
+          el("span", { className: "tname short" }, nickname(l.team.name)),
+        ),
         el("span", { className: "tnums" }, subhead(l)),
       ),
     ),

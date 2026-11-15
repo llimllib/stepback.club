@@ -1,0 +1,128 @@
+---
+import Base from "../layouts/Base.astro"
+---
+
+<Base title="Team" description="A team's season: how good it is and why, its roster, its games, and what's next">
+  <span class="kicker">Team</span>
+  <p id="status" class="note team-status"></p>
+  <div id="team" class="team-page"></div>
+</Base>
+
+<script>
+  import { exportRow } from "../kit/export"
+  import { fontsReady } from "../kit/frame"
+  import { loadingText } from "../kit/mount"
+  import { latestSeason, teamList, teamPage } from "../team/load"
+  import {
+    chartFrame,
+    el,
+    factorsTable,
+    gameLogTable,
+    howGood,
+    nowStrip,
+    rosterTable,
+    teamBand,
+    teamIndex,
+    WINDOW,
+  } from "../team/render"
+
+  const base = import.meta.env.BASE_URL.replace(/\/?$/, "/")
+  const $ = (id: string) => document.getElementById(id)!
+  const [status, body] = [$("status"), $("team")]
+  const link = (href: string, text: string) => el("a", { href }, text)
+  const head = (text: string, id?: string) =>
+    el("h2", { className: "kicker section-head", ...(id ? { id } : {}) }, text)
+  const day = (d: Date) =>
+    d.toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" })
+
+  async function index() {
+    const teams = await teamList(await latestSeason())
+    document.title = "Teams · Step Back Club"
+    body.replaceChildren(el("h1", {}, "Teams"), teamIndex(teams as any, base))
+  }
+
+  async function show() {
+    const abbrev = new URLSearchParams(location.search).get("team") ?? ""
+    body.innerHTML = loadingText()
+    body.dataset.state = "loading"
+    if (!abbrev) {
+      await index()
+      body.dataset.state = "done"
+      return
+    }
+    let p
+    try {
+      ;[p] = await Promise.all([teamPage(abbrev), fontsReady()])
+    } catch (e) {
+      console.error(e)
+      body.replaceChildren()
+      status.replaceChildren("Couldn't load the team. ")
+      body.dataset.state = "failed"
+      return
+    }
+    if (!p) {
+      await index()
+      status.replaceChildren(`No team "${abbrev}". Pick one:`)
+      body.dataset.state = "empty"
+      return
+    }
+    document.title = `${p.team.name} · Step Back Club`
+
+    const chart = el("div", { className: "team-chart" })
+    const factors = factorsTable(p)
+    const asOf = [
+      p.yarapm?.day && `yarapm as of ${day(p.yarapm.day)}`,
+      p.epm?.day && `EPM as of ${day(p.epm.day)}`,
+    ].filter(Boolean)
+    body.replaceChildren(
+      teamBand(p),
+      nowStrip(p, base),
+      head("How good"),
+      el(
+        "div",
+        { className: "how-good-row" },
+        howGood(p),
+        el(
+          "p",
+          { className: "aside" },
+          "Points per 100 possessions better than the average team, and the rank among the 30. Results are this season's games; yarapm and EPM rate the players",
+          asOf.length ? ` (${asOf.join(", ")})` : "",
+          ".",
+        ),
+      ),
+      head("Net rating over the season"),
+      chart,
+      exportRow(chart, `${p.team.abbrev.toLowerCase()}-net-rating`),
+      ...(factors ? [head("Four factors"), factors] : []),
+      head("Roster"),
+      rosterTable(p),
+      head("Games"),
+      p.games.length ? gameLogTable(p, base) : el("p", { className: "note" }, "No games yet."),
+      head("Key"),
+      el(
+        "dl",
+        { className: "key" },
+        ...[
+          ["Results", "Points per 100 possessions scored and allowed, better than the league's average, from this season's games"],
+          ["yarapm", link("https://github.com/llimllib/yarapm/", "yarapm"), "'s rating: points per 100 possessions better than average. A team's is its players' at full strength, weighted by their minutes"],
+          ["EPM", link("https://dunksandthrees.com/epm", "Dunks & Threes"), "' predictive EPM. A team's weighs its players by their expected minutes"],
+          ["Net pts", link("https://espnanalytics.com/", "ESPN Analytics"), "' net points per 100 possessions this season: a player's share of his team's margin. Blank under 200 possessions"],
+          [`Last ${WINDOW}`, `The team's net rating over its last ${WINDOW} games, from their totals; the chart starts at its fifth game`],
+          ["Usg%", "The share of the team's plays a player finishes with a shot, free throws or a turnover while he's on the floor"],
+          ["TS%", "Points per shot, counting free throws: points ÷ (2 × (FGA + 0.44 × FTA))"],
+          ["Out, DTD", "On ESPN's injury list: out, or day to day"],
+          ["2W", "A two-way contract"],
+          ["Pre", "yarapm's chance the team would win, before tip-off. It started logging these on Nov 4, 2026"],
+          ["eFG%", "Field goal percentage, with threes worth 1.5"],
+          ["Turnovers", "Per 100 possessions"],
+          ["Off. reb.", "The share of its own misses a team gets back"],
+          ["FT rate", "Free throws made per field goal attempt"],
+        ].flatMap(([term, ...def]) => [el("dt", {}, term as string), el("dd", {}, ...def)]),
+      ),
+    )
+    chartFrame(chart, p)
+    status.replaceChildren()
+    body.dataset.state = "done"
+  }
+  show()
+</script>

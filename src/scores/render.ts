@@ -85,6 +85,15 @@ function logo(t: { abbrev: string }) {
   return img
 }
 
+// a team's abbreviation, linking to its page
+function teamLink(t: { abbrev: string; name: string }, base: string) {
+  return el(
+    "a",
+    { className: "team-link", href: `${base}team?team=${t.abbrev}` },
+    el("abbr", { title: t.name }, t.abbrev),
+  )
+}
+
 // a logo after an abbreviation, as the home team's in a prediction's
 // headline: "72% ATL" and its logo
 function logoAfter(t: { abbrev: string }) {
@@ -117,7 +126,7 @@ export function gameBlock(g: Game, base: string) {
       el(
         "th",
         { scope: "row" },
-        el("abbr", { title: t.name }, t.abbrev),
+        teamLink(t, base),
         " ",
         el("span", { className: "record" }, `${t.wins}-${t.losses}`),
       ),
@@ -243,7 +252,7 @@ export function predictionBlock(p: Prediction, base: string) {
       el(
         "th",
         { scope: "row" },
-        el("abbr", { title: t.name }, t.abbrev),
+        teamLink(t, base),
         " ",
         el("span", { className: "record" }, `${t.wins}-${t.losses}`),
       ),

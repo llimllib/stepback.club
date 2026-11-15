@@ -1717,3 +1717,436 @@ time {
   text-transform: uppercase;
   color: var(--muted);
 }
+
+/* --- a team's page: its band, what's happening now, how good it is, its
+   net rating over the season, its four factors, roster and games. Each
+   section is under a rule-headed kicker, as on the matchup page */
+.team-page {
+  max-width: 64rem;
+}
+
+.team-page .section-head {
+  margin: 2.2rem 0 0.6rem;
+  padding-bottom: 0.3rem;
+  border-bottom: var(--rule);
+  font-weight: 400;
+}
+
+.team-status:empty {
+  display: none;
+}
+
+/* the band: the team's colors, its logo inset in a newsprint box */
+.team-band {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 8px;
+}
+
+.team-band .logo {
+  flex: none;
+  background: var(--paper);
+  padding: 6px;
+  line-height: 0;
+}
+
+.team-band .tname {
+  margin: 0;
+  font-size: 2.6rem;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.team-band .tnums {
+  display: block;
+  margin-top: 0.3rem;
+  font-family: var(--agate);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* now: three columns between rules, like a paper's briefs */
+.team-page .now {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-bottom: var(--rule);
+}
+
+.team-page .now-cell {
+  padding: 0.8rem 1.25rem 0.9rem;
+  border-left: var(--rule);
+}
+
+.team-page .now-cell:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.team-page .now-cell .kicker {
+  margin: 0 0 0.2rem;
+  font-weight: 400;
+}
+
+.team-page .now-big {
+  margin: 0;
+  font-family: var(--head);
+  font-weight: 700;
+  font-size: 1.9rem;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.team-page .now-sub {
+  margin: 0.1rem 0 0;
+  font-family: var(--agate);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.team-page .now .more {
+  display: inline-block;
+  margin-top: 0.35rem;
+}
+
+/* a loss reads as an L without its color: the color only helps */
+.team-page .loss {
+  color: var(--neg);
+}
+
+.team-page .pos {
+  color: var(--pos);
+}
+
+.team-page .neg {
+  color: var(--neg);
+}
+
+/* the last ten as a row of W and L, a loss in outline */
+.team-page .streak {
+  display: flex;
+  gap: 2px;
+  margin: 0.4rem 0 0;
+  font-family: var(--agate);
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.team-page .streak span {
+  width: 1.1rem;
+  text-align: center;
+  line-height: 1.1rem;
+  cursor: help;
+}
+
+.team-page .streak .w {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.team-page .streak .l {
+  outline: 1px solid var(--ink);
+  outline-offset: -1px;
+}
+
+/* how good: the table and a line on what it is, side by side */
+.team-page .how-good-row {
+  display: flex;
+  gap: 2rem;
+  align-items: start;
+}
+
+.team-page .how-good {
+  width: auto;
+  flex: none;
+}
+
+.team-page .how-good thead th + th {
+  border-left: var(--rule);
+}
+
+.team-page .how-good tbody td:nth-of-type(odd):not(:first-of-type) {
+  border-left: var(--rule);
+}
+
+.team-page .factors tbody tr:first-child > * {
+  font-weight: 700;
+}
+
+.team-page .how-good tbody tr:first-child > * {
+  font-weight: 400;
+}
+
+.team-page .how-good tr.total > * {
+  font-weight: 700;
+  border-top: var(--rule);
+}
+
+.team-page .how-good tr.total .rank {
+  font-weight: 400;
+}
+
+.team-page .factors:not(.how-good) {
+  max-width: 34rem;
+}
+
+.team-page .factors .lg {
+  color: var(--muted);
+  border-left: var(--rule);
+}
+
+.team-page .aside {
+  margin: 0;
+  max-width: 22rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.team-chart svg {
+  display: block;
+  width: 100%;
+  max-width: 720px;
+  height: auto;
+}
+
+.team-chart + .export-row {
+  margin-top: 0.6rem;
+}
+
+/* the roster and the games: agate tables that scroll on a phone */
+.team-page .scroll {
+  overflow-x: auto;
+}
+
+:is(.roster, .gamelog) {
+  width: 100%;
+  border-collapse: collapse;
+  border-bottom: var(--rule);
+  font-family: var(--agate);
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+:is(.roster, .gamelog) :is(th, td) {
+  padding: 0.22rem 0.45rem;
+  font-weight: 400;
+  text-align: right;
+  white-space: nowrap;
+}
+
+:is(.roster, .gamelog) .cols th {
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  border-bottom: var(--rule);
+  cursor: help;
+}
+
+.roster .groups th {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  text-align: left;
+  padding-bottom: 0;
+}
+
+.roster .value {
+  border-left: var(--rule);
+}
+
+.roster td.rating:nth-of-type(6) {
+  border-left: var(--rule);
+}
+
+:is(.roster, .gamelog) tbody tr + tr > * {
+  border-top: 1px solid #dcd7ca;
+}
+
+.roster .name {
+  text-align: left;
+  padding-left: 0;
+  font-family: var(--head);
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: 0;
+}
+
+.roster .cols .name {
+  font-family: var(--agate);
+  font-weight: 400;
+  font-size: 0.68rem;
+}
+
+.roster .name small {
+  font-family: var(--agate);
+  font-weight: 400;
+  font-size: 0.65rem;
+  color: var(--muted);
+}
+
+.roster .name small.injury {
+  color: var(--ink);
+  font-weight: 700;
+  cursor: help;
+}
+
+.roster .num {
+  color: var(--ink);
+}
+
+.roster tr.unplayed .num:not(.rating) {
+  color: var(--muted);
+}
+
+.gamelog {
+  width: auto;
+  min-width: min(100%, 36rem);
+}
+
+.gamelog :is(.date, .opp, .result) {
+  text-align: left;
+}
+
+.gamelog .date {
+  padding-left: 0;
+  color: var(--muted);
+}
+
+.gamelog .opp img {
+  vertical-align: -4px;
+}
+
+.gamelog .opp small {
+  color: var(--muted);
+}
+
+.gamelog .result a {
+  text-decoration: none;
+}
+
+.gamelog .result a:hover {
+  text-decoration: underline;
+}
+
+.gamelog .pre {
+  color: var(--muted);
+}
+
+.team-page .key {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.2rem 0.8rem;
+  margin: 0 0 1.2rem;
+  font-size: 0.85rem;
+}
+
+.team-page .key dt {
+  font-family: var(--agate);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  padding-top: 0.2rem;
+}
+
+.team-page .key dd {
+  margin: 0;
+  color: var(--muted);
+}
+
+/* the index: each conference's teams in columns */
+.team-index {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 2.5rem;
+}
+
+.team-index ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  columns: 2;
+}
+
+.team-index li {
+  break-inside: avoid;
+}
+
+.team-index a {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  font-family: var(--head);
+  font-weight: 600;
+  font-size: 1.1rem;
+  text-decoration: none;
+}
+
+.team-index a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 760px) {
+  .team-band .tname {
+    font-size: 1.8rem;
+  }
+
+  .team-band .logo img {
+    width: 48px;
+    height: 48px;
+  }
+
+  .team-page .now {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .team-page .now-cell,
+  .team-page .now-cell:first-child {
+    padding: 0.7rem 0;
+    border-left: 0;
+  }
+
+  .team-page .now-cell + .now-cell {
+    border-top: var(--rule);
+  }
+
+  .team-page .how-good-row {
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .team-index,
+  .team-index ul {
+    grid-template-columns: minmax(0, 1fr);
+    columns: 1;
+  }
+
+  .team-page .key {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .team-page .key dd {
+    margin-bottom: 0.5rem;
+  }
+}
+
+/* a team's name or abbreviation linking to its page: it reads as the
+   name, underlined on hover */
+.team-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.team-link:hover {
+  text-decoration: underline;
+}
+
+.team-link abbr {
+  text-decoration: none;
+}
+
+svg.frame a:hover text {
+  text-decoration: underline;
+}

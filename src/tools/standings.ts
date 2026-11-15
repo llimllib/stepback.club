@@ -55,6 +55,7 @@ interface D {
   epmDate?: Date
 }
 
+const teamBase = import.meta.env.BASE_URL.replace(/\/?$/, "/")
 const fmtSeason = (s: number) => `${s - 1}–${String(s).slice(2)}`
 const fmtDate = (d: Date) =>
   d.toLocaleDateString("en-US", {
@@ -484,14 +485,18 @@ export const standings: Tool<P, D> = {
           .attr("font-size", fs * 0.85)
           .attr("fill", color.muted)
           .text(seed.get(t)!)
-        row
+        // the logo and abbreviation link to the team's page
+        const link = row
+          .append("a")
+          .attr("href", `${teamBase}team?team=${t.abbrev}`)
+        link
           .append("image")
           .attr("href", logoUrl(t.abbrev))
           .attr("x", 26)
           .attr("y", cy - logo / 2)
           .attr("width", logo)
           .attr("height", logo)
-        row
+        link
           .append("text")
           .attr("x", 30 + logo)
           .attr("y", base)

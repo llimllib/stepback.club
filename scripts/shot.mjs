@@ -49,8 +49,11 @@ await page.waitForSelector("svg.frame", { timeout: 30_000 })
 console.error(`chart rendered in ${Date.now() - t0}ms`)
 
 if (dom) {
-  // a tool's page, or a note's
-  await page.locator("#tool, .note-page").first().screenshot({ path: out })
+  // a tool's page, a note's or a team's
+  await page
+    .locator("#tool, .note-page, .team-page")
+    .first()
+    .screenshot({ path: out })
 } else {
   const [download] = await Promise.all([
     page.waitForEvent("download"),
