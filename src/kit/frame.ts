@@ -11,10 +11,9 @@ export const sizes = {
   auto: { width: 720, height: undefined, label: "Fit" },
   square: { width: 720, height: 720, label: "Square" },
   tall: { width: 720, height: 900, label: "4:5" },
-  // for a wide tool, which offers these and not the 720s: the whole page
-  // column, and a square to post. `column` is a wide chart's one-column
-  // layout, for phones
-  landscape: { width: 1440, height: 1000, label: "Landscape" },
+  // for a wide tool, which offers these and not the 720s: a square as wide
+  // as the page's column, and `column`, a wide chart's one-column layout,
+  // for phones
   bigSquare: { width: 1080, height: 1080, label: "Square" },
   column: { width: 720, height: undefined, label: "Column" },
 } as const

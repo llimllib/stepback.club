@@ -1,6 +1,6 @@
 // Checks the four factors tool in a browser: at desktop and phone widths,
-// with and without a team, a last-n window, a past season's playoffs and an
-// unknown team. Needs the dev server; an agent runs it as
+// with and without a team, a last-n window, a past season's playoffs, an
+// unknown team and the column size. Needs the dev server; an agent runs it as
 //
 //   node scripts/with-dev.mjs node scripts/fourfactors-check.mjs
 //
@@ -75,9 +75,9 @@ for (const width of [1100, 390]) {
   check(c.grayed === 0, `${width}px: no team, nothing grayed`)
   check(c.controlsAbove, `${width}px: controls above the chart`)
   check(!c.overflow, `${width}px: no sideways scroll`)
-  // landscape on a desktop, one column on a phone
+  // square on a desktop, one column on a phone
   check(
-    c.width === (width > 719 ? 1440 : 720),
+    c.width === (width > 719 ? 1080 : 720),
     `${width}px: frame ${c.width} wide`,
   )
   await page
@@ -117,9 +117,17 @@ for (const width of [1100, 390]) {
   await page.close()
 }
 {
-  const page = await open("?size=bigSquare")
+  // the default on a desktop is square; a phone's column can be picked
+  const first = await open("")
+  const square = await chart(first)
+  await first.close()
+  check(
+    square.width === 1080 && square.height === 1080,
+    `square: ${square.width}×${square.height}`,
+  )
+  const page = await open("?size=column")
   const c = await chart(page)
-  check(c.width === 1080 && c.height === 1080, `square: ${c.width}×${c.height}`)
+  check(c.width === 720, `column on a desktop: ${c.width} wide`)
   await page.close()
 }
 

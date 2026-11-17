@@ -114,7 +114,7 @@ export const fourFactors: Tool<P, D> = {
   name: "Four factors",
   defaults,
   wide: true,
-  sizes: ["landscape", "bigSquare", "column"],
+  sizes: ["bigSquare", "column"],
 
   async load(p) {
     const meta = await metadata()
@@ -338,7 +338,7 @@ export const fourFactors: Tool<P, D> = {
         .attr("y2", titleH - 2)
         .attr("stroke", color.ink)
 
-      // logos sized to the plot, which is wider than tall in landscape
+      // logos sized to the plot
       const estW = panelW - 76
       const estH = panelH ? panelH - 68 : estW * 0.82
       const logo = Math.round(

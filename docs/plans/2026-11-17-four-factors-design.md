@@ -70,8 +70,9 @@ is 720 wide. This one needs the whole column on desktop.
 
 - `Tool.wide`: the page puts the controls above the chart, as the narrow
   layout already does under 900px, and the chart takes the full width
-- Two wide frame sizes, offered only by wide tools: landscape, about
-  1440×1000, the default, and square, about 1080×1080, for posting
+- A wide frame size, offered only by wide tools: square, 1080×1080, the
+  page column's width. A 1440×1000 landscape was the default at first,
+  but its panels were too squat (dropped 2026-11-17)
 - On a phone the panels stack, one column of four
 
 ## Checking
