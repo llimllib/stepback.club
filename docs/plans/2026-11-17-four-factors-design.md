@@ -13,10 +13,16 @@ a Team charts pair: a pair is one x and one y.
 
 **Panels.** Two by two in Oliver's order: eFG% and turnovers on top,
 offensive rebounding and free throw rate below. Each panel is the Team
-charts pair as it is: team on x, opponents on y, turnovers forced on x so
-x − y stays the margin, the league average's crosshair splitting it into
-quadrants, and the pair's corner names ("Protects the ball", "Offensive
-glass", …). Each panel keeps its own scale.
+charts pair as it is: team on x, opponents on y, the league average's
+crosshair splitting it into quadrants, and the pair's corner names
+("Protects the ball", "Offensive glass", …). Each panel keeps its own
+scale.
+
+Turnovers used to put forced on x, so x − y was the margin; in the grid
+that read as flipped. Now, in both tools, x is the team's offense and y
+its defense in every factor: turnovers committed on x, reversed, and
+forced on y, with the diagonals named for forced − committed (added
+2026-11-17).
 
 Not done: weighting the panels by how much each factor matters (eFG%
 most, free throws least), e.g. by converting each margin to points per

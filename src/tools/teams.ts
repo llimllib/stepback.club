@@ -235,6 +235,8 @@ interface Pair {
   // lines of constant x − y, named for that difference, for a side of the
   // ball against its opposite
   diff?: (c: number) => string
+  // the difference that matters is y − x, so the legend says so
+  flip?: boolean
   // lines of constant x + y, for offense and defense that add to net
   sum?: boolean
   // ratings as of a day, rather than over the season's games
@@ -743,7 +745,9 @@ export const teamCharts: Tool<P, D> = {
               {
                 symbol: "line" as const,
                 color: color.faint,
-                text: `diagonals: ${sx.short} − ${sy.short}`,
+                text: pair.flip
+                  ? `diagonals: ${sy.short} − ${sx.short}`
+                  : `diagonals: ${sx.short} − ${sy.short}`,
               },
             ]
           : []),

@@ -14,6 +14,7 @@ import {
   factorStats as stats,
   factors,
   loadLogs,
+  margin as factorMargin,
   type Totals,
 } from "./team-logs"
 
@@ -28,7 +29,7 @@ const defaults = {
 }
 type P = typeof defaults
 
-// the panels, in Oliver's order, and how each writes a team's margin, x − y
+// the panels, in Oliver's order, and how each writes a team's margin
 const panels: {
   id: keyof typeof factors
   title: string
@@ -63,7 +64,7 @@ interface Team {
   games: number
   // each panel's x and y
   at: Record<PanelId, { x: number; y: number }>
-  // each panel's x − y, and its rank among the teams, 1 the best
+  // each panel's margin, higher better, and its rank among the teams, 1 the best
   margin: Record<PanelId, number>
   rank: Record<PanelId, number>
 }
@@ -139,7 +140,7 @@ export const fourFactors: Tool<P, D> = {
       const margin = {} as Team["margin"]
       for (const { id } of panels) {
         at[id] = point(id, t)
-        margin[id] = at[id].x - at[id].y
+        margin[id] = factorMargin(factors[id], at[id].x, at[id].y)
       }
       if (Object.values(margin).some(m => !isFinite(m))) continue
       shown.push({

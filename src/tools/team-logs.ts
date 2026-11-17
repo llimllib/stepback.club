@@ -90,9 +90,10 @@ export const factorStats: Record<string, Stat> = {
   },
 }
 
-// One factor as a scatter: x is the team's side, y its opponents', so the
-// diagonals (x − y) are the team's margin in it. Corners name the
-// quadrants: top left, top right, bottom left, bottom right
+// One factor as a scatter: x is the team's offense, y its defense, so up
+// and right are better and the diagonals are the team's margin in it: x − y,
+// or y − x if `flip`, for the factor where lower is better on offense.
+// Corners name the quadrants: top left, top right, bottom left, bottom right
 export interface Factor {
   name: string
   x: string
@@ -102,7 +103,13 @@ export interface Factor {
   corners: [string, string, string, string]
   // a diagonal's name, for its value of x − y
   diff: (c: number) => string
+  // the margin is y − x
+  flip?: boolean
 }
+
+// a team's margin in a factor, from its x and y; higher is better
+export const margin = (f: Factor, x: number, y: number) =>
+  f.flip ? y - x : x - y
 
 export const ends: [string, string, string, string] = [
   "Defense only",
@@ -121,15 +128,16 @@ export const factors: Record<string, Factor> = {
     corners: ends,
     diff: c => `${sign(c)}${+Math.abs(c * 100).toFixed(1)}`,
   },
-  // turnovers are the one factor where lower is better on offense, so
-  // forced turnovers go on x to keep x − y the margin
+  // turnovers are the one factor where lower is better on offense: x runs
+  // backwards, and the margin is forced less committed, y − x
   "tov-both": {
     name: "Turnovers, both ends",
-    x: "tov_forced",
-    y: "tov_committed",
-    deck: "Turnovers by opponents' turnovers per 100 possessions",
-    corners: ["Protects the ball", "Both", "Neither", "Forces them"],
-    diff: c => `${sign(c)}${Math.abs(c)}`,
+    x: "tov_committed",
+    y: "tov_forced",
+    deck: "Opponents' turnovers by turnovers per 100 possessions",
+    corners: ["Forces them", "Both", "Neither", "Protects the ball"],
+    diff: c => `${sign(-c)}${Math.abs(c)}`,
+    flip: true,
   },
   rebounding: {
     name: "Offensive rebounding, both ends",
