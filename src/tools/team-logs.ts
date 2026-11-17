@@ -135,7 +135,7 @@ export const factors: Record<string, Factor> = {
     x: "tov_committed",
     y: "tov_forced",
     deck: "Opponents' turnovers by turnovers per 100 possessions",
-    corners: ["Forces them", "Both", "Neither", "Protects the ball"],
+    corners: ["Forces turnovers", "Both", "Neither", "Protects the ball"],
     diff: c => `${sign(-c)}${Math.abs(c)}`,
     flip: true,
   },
