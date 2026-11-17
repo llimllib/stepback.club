@@ -1,0 +1,19 @@
+---
+import Base from "../layouts/Base.astro"
+---
+
+<Base title="Four factors" description="Dean Oliver's four factors for every team at once: shooting, turnovers, offensive rebounding and free throws, each at both ends">
+  <h1>Four factors</h1>
+  <p class="lede">
+    Dean Oliver's four factors, every team in each: its own rate across,
+    its opponents' up, so a team further toward the top right won that
+    factor by more. Pick a team to see it in color in all four.
+  </p>
+  <div id="tool"></div>
+</Base>
+
+<script>
+  import { mount } from "../kit/mount"
+  import { fourFactors } from "../tools/fourfactors"
+  mount(document.getElementById("tool")!, fourFactors)
+</script>

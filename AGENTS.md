@@ -37,6 +37,10 @@ or the frame.
 - `node scripts/team-check.mjs [team]`: checks a team's page at desktop
   and phone widths, with yarapm, EPM or ESPN missing, an unknown team and
   the index; saves `shots/team-<width>.png` and `shots/team-index.png`
+- `node scripts/fourfactors-check.mjs`: checks the four factors tool at
+  desktop and phone widths, with and without a team, a last-n window, a
+  past season's playoffs and the square size; saves
+  `shots/fourfactors-<width>.png` and `shots/fourfactors-team-<width>.png`
 - `npx astro check`: type check
 - `mise run lint`: formatting (oxfmt), lints (oxlint) and types. Run it
   before every commit; `mise run fmt` fixes the formatting. Nothing else

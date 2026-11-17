@@ -192,12 +192,14 @@ export interface LogoPoint {
 // its point. Logos that fit where they are go first, so the ones that move
 // are the crowded ones. `overlap` is how much of its width a logo may lose
 // to its neighbors before it moves: moving costs a leader and a dot, so some
-// overlap reads better. Returns each logo's center
+// overlap reads better. `pinned`, a key, is the one the chart is about:
+// placed first, on its point, so it never moves. Returns each logo's center
 export function placeLogos(
   points: LogoPoint[],
   bounds: { width: number; height: number },
   size: number,
   overlap = 0.4,
+  pinned?: string,
 ): Map<string, [number, number]> {
   const at = new Map<string, [number, number]>()
   if (!points.length) return at
@@ -232,7 +234,11 @@ export function placeLogos(
   })
   const order = points
     .map((_, i) => i)
-    .sort((a, b) => Number(fits[b]) - Number(fits[a]))
+    .sort(
+      (a, b) =>
+        Number(points[b].key === pinned) - Number(points[a].key === pinned) ||
+        Number(fits[b]) - Number(fits[a]),
+    )
 
   const placed: Box[] = []
   const rings = [0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4]
@@ -243,7 +249,7 @@ export function placeLogos(
     const [cx, cy] = cell ? polygonCentroid(cell) : [p.x, p.y]
     const toward = Math.atan2(cy - p.y, cx - p.x)
     const spots: [number, number][] = [[p.x, p.y]]
-    for (const k of rings) {
+    for (const k of p.key === pinned ? [] : rings) {
       // nearest the open side first
       const ts = Array.from(
         { length: angles },

@@ -136,6 +136,10 @@ export interface Tool<P extends Params, D> {
   // the export sizes that make sense for the chart, if not all of them: a
   // long table has only its own height. With one, there's no size picker
   sizes?: Size[]
+  // the chart takes the page's whole column, with the controls above it
+  // rather than beside it. Its sizes are wide ones; on a phone it starts at
+  // `column`, if it offers that
+  wide?: boolean
   load(p: P): Promise<D>
   // Fix up params that don't fit the data, e.g. a team with no playoff games
   normalize?(d: D, p: P): P

@@ -2,7 +2,13 @@
 // annotation layer, and the framing actions below it. All state round-trips
 // through the URL
 import { AnnotationLayer, type Annotation, type Mode } from "./annotate"
-import { buildFrame, fontsReady, sizes, type Size } from "./frame"
+import {
+  buildFrame,
+  fontsReady,
+  sizes,
+  standardSizes,
+  type Size,
+} from "./frame"
 import { download, toPng } from "./export"
 import {
   decodeHash,
@@ -50,7 +56,15 @@ export async function mount<P extends Params, D>(
   // question controls, the chart, then framing and export: a rail beside the
   // chart on wide screens, in that order down the page on narrow ones
   root.classList.add("tool")
-  const allowed = tool.sizes ?? (Object.keys(sizes) as Size[])
+  if (tool.wide) root.classList.add("wide")
+  const allowed = tool.sizes ?? standardSizes
+  // without a size in the URL, a wide chart starts in one column on a phone
+  const fallback =
+    tool.wide &&
+    allowed.includes("column") &&
+    matchMedia("(max-width: 719px)").matches
+      ? "column"
+      : allowed[0]
   root.innerHTML = `
     <form class="controls"></form>
     <div class="chart-host"><div class="chart"></div><div class="status"></div>
@@ -124,9 +138,7 @@ export async function mount<P extends Params, D>(
     // the printed URL names the tool, not the view: a reader types it in
     // from an image, and a query string is too long to type
     const url = `${SITE}/${tool.id}`
-    const size = (
-      allowed.includes(p.size as Size) ? p.size : allowed[0]
-    ) as Size
+    const size = (allowed.includes(p.size as Size) ? p.size : fallback) as Size
     // the chart's own controls work only when a click isn't for a note
     const fromChart = (patch: Partial<P>) => {
       if (mode === "select") set(patch as Params)

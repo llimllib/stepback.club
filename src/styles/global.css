@@ -620,6 +620,59 @@ select {
   }
 }
 
+/* a wide tool: the chart takes the column, with the controls in a row
+   above it and the actions in a row below, at every width */
+.tool.wide {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: none;
+  grid-template-areas: "controls" "chart" "actions";
+}
+
+.tool.wide .controls,
+.tool.wide .actions {
+  margin: 0;
+  padding: 0;
+  border-left: 0;
+}
+
+.tool.wide .controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.tool.wide .controls > * {
+  flex: 1 1 12rem;
+}
+
+.tool.wide .controls > :last-child {
+  border-bottom: var(--rule);
+}
+
+.tool.wide .actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0 1.5rem;
+  margin-top: 1rem;
+  padding-top: 0.5rem;
+}
+
+.tool.wide .actions fieldset {
+  border-bottom: 0;
+}
+
+.tool.wide .actions .export {
+  width: auto;
+  margin: 0 0 0.6rem auto;
+  padding: 0.7rem 1.5rem;
+}
+
+.tool.wide .actions .hint {
+  flex-basis: 100%;
+}
+
 /* text typed over the chart */
 .note-input,
 .framing-input {

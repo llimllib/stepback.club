@@ -27,6 +27,13 @@ export const catalog = [
     takes: ["Stats", "Season", "Playoffs", "Games"],
   },
   {
+    href: "fourfactors",
+    name: "Four factors",
+    blurb:
+      "Dean Oliver's four factors for every team at once: shooting, turnovers, offensive rebounding and free throws, each at both ends.",
+    takes: ["Season", "Team", "Playoffs", "Games"],
+  },
+  {
     href: "playoffs",
     name: "Playoff net points",
     blurb: "Every player's net points in every playoff game, by team.",
