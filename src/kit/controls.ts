@@ -3,6 +3,7 @@
 // slider over a span of values, a select that picks several, and a search
 // box that picks several players
 import type { Params } from "./state"
+import { hasAll, squash, terms } from "./match"
 import type { Control, Option } from "./tool"
 
 type Set = (patch: Params) => void
@@ -199,15 +200,8 @@ function multi(
   return div
 }
 
-// lower case without accents, so "jokic" finds Jokić
-const fold = (s: string) =>
-  s
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase()
-
 // A search box with the picked players as chips under it. Every word typed
-// has to appear in the name
+// has to appear in the name, loosely: see match.ts
 function players(
   c: Extract<Control, { kind: "players" }>,
   p: Params,
@@ -255,17 +249,15 @@ function players(
   list.setAttribute("role", "listbox")
   box.append(input, list)
 
-  const folded = c.options.map(o => [fold(o.label), o] as const)
+  const folded = c.options.map(o => [squash(o.label), o] as const)
   let matches: Option[] = []
   let active = 0
   const show = () => {
-    const terms = fold(input.value).split(/\s+/).filter(Boolean)
-    matches = terms.length
+    const ts = terms(input.value)
+    matches = ts.length
       ? folded
           .filter(
-            ([f, o]) =>
-              !picked.includes(String(o.value)) &&
-              terms.every(t => f.includes(t)),
+            ([f, o]) => !picked.includes(String(o.value)) && hasAll(f, ts),
           )
           .map(([, o]) => o)
           .slice(0, 12)
