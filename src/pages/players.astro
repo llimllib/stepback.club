@@ -1,0 +1,138 @@
+---
+import Base from "../layouts/Base.astro"
+---
+
+<Base title="Players" description="Every player's yarapm on any day of a season: offense, defense and total, how they've moved in a week, and what each rests on">
+  <h1>YARAPM</h1>
+  <div id="players" class="players-page"></div>
+</Base>
+
+<script>
+  import { loadingText } from "../kit/mount"
+  import { loadSeason, QUALIFY, seasons as listSeasons, type Season } from "../players/load"
+  import {
+    controls,
+    fmtDay,
+    fmtSeason,
+    rows,
+    sortKeys,
+    table,
+    type SortKey,
+    type State,
+  } from "../players/render"
+  import { el } from "../team/render"
+
+  const root = document.getElementById("players")!
+  // the status line: the day and the count, and a link down to the key
+  const said = el("span")
+  const status = el(
+    "p",
+    { className: "players-status" },
+    said,
+    el("a", { href: "#key" }, "What the columns mean ↓"),
+  )
+  const holder = el("div", { className: "players-table" })
+  const key = el(
+    "dl",
+    { className: "key" },
+    ...[
+      ["yarapm", el("a", { href: "https://github.com/llimllib/yarapm/" }, "yarapm"), "'s ratings: ridge RAPM on lineups, each player pulled toward a box-score prior, with older games weighted less. Offense, defense and total are points per 100 possessions better than the average player in that day's lineups"],
+      ["Week", "The total's change from yarapm's last rating at least seven days before. Blank in a season's first week"],
+      ["Box score", "What his box score alone says: the prior yarapm pulls his ratings toward, from a formula it fits on earlier seasons"],
+      ["Beyond box", "What the lineup data adds: his total minus his box score. It builds over seasons, not just this one, with older games counting less. High for players whose impact doesn't show in the box score"],
+      ["Role", "This regular season, in the games before the day"],
+      ["Usg%", "The share of his team's plays he finishes with a shot, free throws or a turnover while he's on the floor"],
+      ["TS%", "Points per shot, counting free throws: points ÷ (2 × (FGA + 0.44 × FTA))"],
+      ["Qualified", `Sorted by minutes, points, usage or true shooting, the players who've played ${QUALIFY.mpg} minutes a game in a quarter of the games the most-played team has come first, and the rest after a rule, as Basketball Reference does it. The ratings don't need this: a small sample is pulled toward the box score and earlier seasons`],
+      ["#", "Rank by total among every player rated that day, whatever the filter"],
+    ].flatMap(([term, ...def]) => [el("dt", {}, term as string), el("dd", {}, ...def)]),
+  )
+
+  const q = new URLSearchParams(location.search)
+  let s: State = {
+    season: +(q.get("season") ?? 0),
+    date: q.get("date") ?? "",
+    team: (q.get("team") ?? "").toUpperCase(),
+    sort: (sortKeys.has(q.get("sort") ?? "") ? q.get("sort") : "net") as SortKey,
+    order: q.get("order") === "asc" ? "asc" : "desc",
+    q: q.get("q") ?? "",
+  }
+  let all: number[] = []
+  let data: Season | undefined
+
+  const ctl = controls(change => {
+    const reload = change.season !== undefined && change.season !== s.season
+    s = { ...s, ...change }
+    if (reload) show()
+    else draw()
+  })
+
+  // the state in the URL, without its defaults
+  function save() {
+    const latest = all[0]
+    const out = new URLSearchParams()
+    if (s.season !== latest) out.set("season", String(s.season))
+    if (data && s.date !== data.days.at(-1)) out.set("date", s.date)
+    if (s.team) out.set("team", s.team)
+    if (s.sort !== "net") out.set("sort", s.sort)
+    if (s.order === "asc") out.set("order", "asc")
+    if (s.q.trim()) out.set("q", s.q.trim())
+    const search = out.size ? `?${out}` : ""
+    if (search !== location.search)
+      history.replaceState(null, "", location.pathname + search)
+  }
+
+  function draw() {
+    if (!data) return
+    // a day it doesn't rate: the last one before it, or its first
+    if (!data.days.includes(s.date))
+      s.date = data.days.filter(d => d <= s.date).at(-1) ?? data.days.at(-1)!
+    if (s.team && !data.teams.some(t => t.abbrev === s.team)) s.team = ""
+    ctl.update(data, all, s)
+    save()
+    const players = data.on(s.date)
+    const n = rows(players, s).shown.length
+    const last = s.date === data.days.at(-1)
+    const finished = s.season !== all[0] && last
+    said.replaceChildren(
+      finished
+        ? `Final ratings of the ${fmtSeason(s.season)} season, with the playoffs. `
+        : `As of ${fmtDay(s.date, true)}, from the games before it. `,
+      n === players.length ? `${n} players.` : `${n} of ${players.length} players.`,
+    )
+    holder.replaceChildren(
+      // a new column sorts best first; the same one again, the other way
+      table(players, s, sort => {
+        const order = sort === s.sort && s.order === "desc" ? "asc" : "desc"
+        s = { ...s, sort, order }
+        draw()
+      }),
+    )
+  }
+
+  async function show() {
+    root.dataset.state = "loading"
+    holder.innerHTML = loadingText()
+    try {
+      if (!all.length) all = await listSeasons()
+      if (!all.includes(s.season)) s.season = all[0]
+      data = await loadSeason(s.season)
+    } catch (e) {
+      console.error(e)
+      holder.replaceChildren(el("p", { className: "note" }, "Couldn't load the ratings."))
+      root.dataset.state = "failed"
+      return
+    }
+    if (!data.days.length) {
+      holder.replaceChildren(el("p", { className: "note" }, "No ratings for this season yet."))
+      root.dataset.state = "empty"
+      return
+    }
+    if (!s.date) s.date = data.days.at(-1)!
+    draw()
+    root.dataset.state = "done"
+  }
+
+  root.replaceChildren(ctl.node, status, holder, el("h2", { className: "kicker section-head", id: "key" }, "Key"), key)
+  show()
+</script>
