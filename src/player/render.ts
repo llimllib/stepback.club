@@ -935,6 +935,26 @@ export function gameLogTable(games: Game[]) {
       el(
         "thead",
         {},
+        // the last three are ESPN's, not yarapm's, which doesn't rate a
+        // game: the group's head says so
+        espn
+          ? el(
+              "tr",
+              { className: "groups" },
+              el("td", { colSpan: n - 3 }),
+              el(
+                "th",
+                {
+                  scope: "colgroup",
+                  colSpan: 3,
+                  className: "opens",
+                  title:
+                    "ESPN Analytics' net points: the points he added in the game, on offense and defense",
+                },
+                "ESPN net points",
+              ),
+            )
+          : "",
         el(
           "tr",
           { className: "cols" },

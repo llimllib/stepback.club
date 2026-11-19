@@ -1998,7 +1998,7 @@ time {
   cursor: help;
 }
 
-.roster .groups th {
+:is(.roster, .player-games) .groups th {
   font-size: 0.68rem;
   text-transform: uppercase;
   text-align: left;
