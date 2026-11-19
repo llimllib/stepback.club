@@ -28,10 +28,19 @@ doesn't export. A postable top-25 would be a tool preset, not this page.
 
 ## Controls
 
-Four, in a row between rules above the table: season, day (a native range
-over the season's rated days), team, and a name search that ignores
-accents. Headers sort, best first, and reverse on a second click. State is in
-the URL: `season`, `date`, `team`, `sort`, `order`, `q`, each left out at its default.
+Five, in a row between rules above the table: season, day (a native date
+input, limited to the season; a day it doesn't rate shows the last one
+before it), change since (a week ago, a month ago, opening night),
+team, and a name search that ignores case, accents and punctuation.
+Headers sort, best first, and reverse on a second click. State is in the
+URL: `season`, `date`, `since`, `team`, `sort`, `order`, `q`, each left
+out at its default.
+
+The day was a slider across the row at first (2026-11-18), but an exact
+day is a narrow question; what a day is good for is a comparison. So the
+slider shrank to a date input, and its room went to Change since, which
+asks who the model has changed its mind about: sorted by the change since
+opening night, the season's risers and fallers.
 
 ## The table
 
@@ -39,9 +48,12 @@ the URL: `season`, `date`, `team`, `sort`, `order`, `q`, each left out at its de
 player (with position and age in agate), team, then three groups, each
 opened by a rule:
 
-- **yarapm**: Off, Def, Total with a bar from zero, Week (the total's
-  change since the last day at least seven days earlier; blank in the
-  first week).
+- **yarapm**: Off, Def, Total with a bar from zero, and the total's
+  change since the baseline day, whose head names it ("Since Nov 11"):
+  the last day rated a week or a month before, or opening night's
+  ratings. A week or a month reaching back before the season measures
+  from its first day; on that day there's nothing to measure from, and
+  the head says "Change".
 - **Total = box + beyond**: Box score (yarapm's prior, `o_prior +
   d_prior`) and Beyond box (total − box score): how much of a rating the
   box score explains and how much the lineup data adds, which D&T can't
@@ -57,7 +69,7 @@ one scale, from the day's lowest total to its highest, so a team's view
 shows its players against the league. Zero sits where that range puts
 it, about a third of the way in, not in the middle, so the best players'
 bars start close to their numbers. Total's head spans the number and
-the bar, and a gap after the bar sets Week apart. The name links to RAPM over time for that season. On a
+the bar, and a gap after the bar sets the change apart. The name links to RAPM over time for that season. On a
 phone the name column sticks while the numbers scroll, and drops position
 and age.
 
@@ -91,4 +103,3 @@ and age.
 - No swarm beside the table _(mine)_, unlike D&T's.
 - The page is `/players` and is in the nav, between Teams and Tools
   _(mine)_.
-- The day slider has no month ticks yet.

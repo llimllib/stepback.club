@@ -24,7 +24,8 @@ export interface Player {
   off: number
   def: number
   net: number
-  // net's change from a week earlier, NaN in a season's first week
+  // net's change since the view's baseline day (see baseline), NaN for a
+  // player it didn't rate or a view with no baseline
   delta: number
   // the box-score prior, o_prior + d_prior, on the same scale
   prior: number
@@ -46,15 +47,30 @@ export interface Season {
   // the game days yarapm rates, oldest first, as YYYY-MM-DD
   days: string[]
   teams: { abbrev: string; name: string }[]
-  // every player rated on each day, built on demand
-  on(day: string): Player[]
+  // every player rated on a day, with his change since the baseline day,
+  // built on demand
+  on(day: string, since: Since): { players: Player[]; from?: string }
+}
+
+// what the change is measured from: the last day rated a week or a month
+// before, or the season's first day (opening night's ratings, before a
+// game). A week or a month that reaches back before the season starts at
+// its first day
+export type Since = "week" | "month" | "start"
+export const sinceKeys: Since[] = ["week", "month", "start"]
+
+export function baseline(days: string[], day: string, since: Since) {
+  const d = new Date(`${day}T00:00:00Z`)
+  if (since === "week") d.setUTCDate(d.getUTCDate() - 7)
+  if (since === "month") d.setUTCMonth(d.getUTCMonth() - 1)
+  const cutoff = since === "start" ? days[0] : iso(d)
+  const from = days.filter(x => x <= cutoff).at(-1) ?? days[0]
+  // the day itself, opening night: nothing to measure from
+  return from && from < day ? from : undefined
 }
 
 export const iso = (d: Date | string) =>
   typeof d === "string" ? d.slice(0, 10) : d.toISOString().slice(0, 10)
-
-// a week, and how far back a day's change is measured
-const WEEK = 7 * 86_400_000
 
 // The seasons yarapm rates, newest first
 export async function seasons() {
@@ -159,18 +175,12 @@ export async function loadSeason(season: number): Promise<Season> {
   }
   const days = [...byDay.keys()].sort()
 
+  // each day's players, without their change, which depends on the view
   const built = new Map<string, Player[]>()
-  function on(day: string): Player[] {
+  function onDay(day: string): Player[] {
     const done = built.get(day)
     if (done) return done
     const rows = byDay.get(day) ?? []
-
-    // a week earlier: the last day rated at least seven days before
-    const cutoff = iso(new Date(+new Date(day) - WEEK))
-    const before = days.filter(d => d <= cutoff).at(-1)
-    const then = new Map(
-      (before ? byDay.get(before)! : []).map(r => [r.player_id, r.rating]),
-    )
 
     // the box score through the day before
     const box = new Map<
@@ -235,7 +245,6 @@ export async function loadSeason(season: number): Promise<Season> {
     const players = rows.map(r => {
       const s = box.get(r.player_id)
       const shots = s ? 2 * (s.fga + 0.44 * s.fta) : 0
-      const prev = then.get(r.player_id)
       return {
         player_id: r.player_id,
         name: name.get(r.player_id) ?? r.player_id,
@@ -250,7 +259,7 @@ export async function loadSeason(season: number): Promise<Season> {
         off: r.o_rating,
         def: r.d_rating,
         net: r.rating,
-        delta: prev === undefined ? NaN : r.rating - prev,
+        delta: NaN,
         prior: r.o_prior + r.d_prior,
         rank: 1 + nets.filter(n => n > r.rating).length,
         qualified: !!s && s.gp >= minGames && s.min / s.gp >= QUALIFY.mpg,
@@ -258,6 +267,18 @@ export async function loadSeason(season: number): Promise<Season> {
     })
     built.set(day, players)
     return players
+  }
+
+  function on(day: string, since: Since) {
+    const from = baseline(days, day, since)
+    const then = new Map(
+      (from ? byDay.get(from)! : []).map(r => [r.player_id, r.rating]),
+    )
+    const players = onDay(day).map(p => {
+      const prev = then.get(p.player_id)
+      return { ...p, delta: prev === undefined ? NaN : p.net - prev }
+    })
+    return { players, from }
   }
 
   return {

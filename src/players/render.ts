@@ -3,12 +3,14 @@
 // load.ts. Design: docs/plans/2026-11-18-players-design.md
 import { hasAll, squash, terms } from "../kit/match"
 import { el, signed } from "../team/render"
-import { QUALIFY, type Player, type Season } from "./load"
+import { QUALIFY, type Player, type Season, type Since } from "./load"
 
 export interface State {
   season: number
   // YYYY-MM-DD, one of the season's days
   date: string
+  // what the change column measures from
+  since: Since
   // a team's abbreviation, or "" for every team
   team: string
   sort: SortKey
@@ -22,10 +24,10 @@ const fixed = (v: number, d = 1) => (Number.isFinite(v) ? v.toFixed(d) : dash)
 const sign = (v: number) =>
   !Number.isFinite(v) || Math.abs(v) < 0.05 ? "" : v > 0 ? "pos" : "neg"
 export const fmtSeason = (s: number) => `${s - 1}–${String(s).slice(2)}`
-export const fmtDay = (d: string, year = false) =>
+export const fmtDay = (d: string, year = false, weekday = !year) =>
   new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", {
     timeZone: "UTC",
-    weekday: year ? undefined : "short",
+    weekday: weekday ? "short" : undefined,
     month: "short",
     day: "numeric",
     year: year ? "numeric" : undefined,
@@ -90,8 +92,9 @@ export const cols: Col[] = [
   },
   {
     key: "delta",
-    label: "Week",
-    title: "How much his total has moved since a week before",
+    // its head names the day it's measured from; see table
+    label: "Change",
+    title: "How much his total has moved since the day in its head",
     group: "rating",
     value: p => p.delta,
     text: p => signed(p.delta),
@@ -198,7 +201,13 @@ export function rows(all: Player[], s: State) {
   }
 }
 
-// --- the controls: season, day, team, search
+// --- the controls: season, day, change since, team, search
+
+const sinceNames: Record<Since, string> = {
+  week: "A week ago",
+  month: "A month ago",
+  start: "Opening night",
+}
 
 export interface Controls {
   node: HTMLElement
@@ -217,17 +226,22 @@ export function controls(on: (change: Partial<State>) => void): Controls {
     on({ season: +season.value, date: "" }),
   )
 
+  // a day of the season: one it doesn't rate (the All-Star break) shows
+  // the last one before it
   const day: HTMLInputElement = document.createElement("input")
-  Object.assign(day, { type: "range", name: "day", min: "0", step: "1" })
-  const dayText: HTMLOutputElement = document.createElement("output")
-  dayText.className = "day"
-  let days: string[] = []
-  // the label follows the handle; the table changes when it's let go, or
-  // on each arrow key
-  day.addEventListener("input", () => {
-    dayText.value = fmtDay(days[+day.value])
+  Object.assign(day, { type: "date", name: "date", required: true })
+  day.addEventListener("change", () => {
+    if (day.value) on({ date: day.value })
   })
-  day.addEventListener("change", () => on({ date: days[+day.value] }))
+
+  const since: HTMLSelectElement = document.createElement("select")
+  since.name = "since"
+  since.append(
+    ...Object.entries(sinceNames).map(([value, label]) =>
+      el("option", { value }, label),
+    ),
+  )
+  since.addEventListener("change", () => on({ since: since.value as Since }))
 
   const team: HTMLSelectElement = document.createElement("select")
   team.name = "team"
@@ -246,13 +260,8 @@ export function controls(on: (change: Partial<State>) => void): Controls {
     "form",
     { className: "player-controls" },
     field("Season", season),
-    el(
-      "label",
-      { className: "field day-field" },
-      el("span", {}, "Day "),
-      dayText,
-      day,
-    ),
+    field("Day", day),
+    field("Change since", since),
     field("Team", team),
     field("Search", q),
   )
@@ -270,11 +279,10 @@ export function controls(on: (change: Partial<State>) => void): Controls {
           ),
         ),
       )
-      days = data.days
-      day.max = String(Math.max(0, days.length - 1))
-      day.value = String(Math.max(0, days.indexOf(s.date)))
-      day.disabled = days.length < 2
-      dayText.value = fmtDay(s.date)
+      day.min = data.days[0]
+      day.max = data.days.at(-1)!
+      day.value = s.date
+      since.value = s.since
       team.replaceChildren(
         el("option", { value: "", selected: !s.team }, "Every team"),
         ...data.teams.map(t =>
@@ -329,7 +337,13 @@ function bar(v: number, r: Range) {
   return el("td", { className: "bar", ariaHidden: "true" }, track)
 }
 
-export function table(all: Player[], s: State, onSort: (k: SortKey) => void) {
+// `from` is the day the change column measures from, if there is one
+export function table(
+  all: Player[],
+  s: State,
+  from: string | undefined,
+  onSort: (k: SortKey) => void,
+) {
   const { shown, unqualified } = rows(all, s)
   const nets = all.map(p => p.net).filter(Number.isFinite)
   const range = { lo: Math.min(-1, ...nets), hi: Math.max(1, ...nets) }
@@ -344,7 +358,9 @@ export function table(all: Player[], s: State, onSort: (k: SortKey) => void) {
           ? `${c.title}. Click to sort ${asc ? "highest" : "lowest"} first`
           : `${c.title}. Click to sort by it`,
       },
-      c.label,
+      c.key === "delta" && from
+        ? `Since ${fmtDay(from, false, false)}`
+        : c.label,
       on ? (asc ? " ▲" : " ▼") : "",
     )
     b.addEventListener("click", () => onSort(c.key))

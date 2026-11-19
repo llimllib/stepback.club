@@ -2209,7 +2209,9 @@ svg.frame a:hover text {
    docs/plans/2026-11-18-players-design.md */
 .player-controls {
   display: grid;
-  grid-template-columns: 9rem minmax(12rem, 1fr) 13rem 13rem;
+  grid-template-columns:
+    minmax(0, 9rem) minmax(0, 11rem) minmax(0, 12rem)
+    minmax(0, 1fr) minmax(0, 1fr);
   border-top: var(--rule);
   border-bottom: var(--rule);
 }
@@ -2227,8 +2229,11 @@ svg.frame a:hover text {
   border-left: 0;
 }
 
-.player-controls .field > span,
-.player-controls output {
+.player-controls :is(select, input) {
+  max-width: 100%;
+}
+
+.player-controls .field > span {
   font-family: var(--agate);
   font-size: 0.72rem;
   letter-spacing: 0.04em;
@@ -2236,23 +2241,7 @@ svg.frame a:hover text {
   color: var(--muted);
 }
 
-.player-controls output {
-  color: var(--ink);
-  font-weight: 700;
-}
-
-.player-controls .day-field {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-content: start;
-}
-
-.player-controls .day-field input {
-  grid-column: 1 / -1;
-  margin: 0.45rem 0 0;
-}
-
-.player-controls input[type="search"] {
+.player-controls input:is([type="search"], [type="date"]) {
   font: 1rem var(--head);
   font-weight: 600;
   padding: 0.25rem;
@@ -2501,13 +2490,18 @@ svg.frame a:hover text {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 
-  .player-controls .field:nth-child(3) {
+  /* two to a row, the search across the last */
+  .player-controls .field:nth-child(odd) {
     padding-left: 0;
     border-left: 0;
   }
 
   .player-controls .field:nth-child(n + 3) {
     border-top: var(--rule);
+  }
+
+  .player-controls .field:nth-child(5) {
+    grid-column: 1 / -1;
   }
 
   .players-page .key {

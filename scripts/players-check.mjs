@@ -171,19 +171,65 @@ for (const width of [1100, 390]) {
   await page.close()
 }
 
-// the day slider: its first day, before any games
+// the day: its first, before any games, and nothing to measure from.
+// One before the season shows its first
 {
   const page = await open("")
-  await page.locator("input[name=day]").focus()
-  await page.keyboard.press("Home")
-  const q = query(page)
-  check(/date=\d{4}-\d{2}-\d{2}/.test(q), `the slider's day in the URL (${q})`)
+  const first = await page.locator("input[name=date]").getAttribute("min")
+  await page.fill("input[name=date]", "2000-01-01")
+  check(
+    query(page).includes(`date=${first}`),
+    `a day before the season: its first (${query(page)})`,
+  )
   const gp = await column(page, "gp")
   check(
     gp.every(v => !Number.isFinite(v)),
     "the season's first day: no games yet",
   )
+  const head = page.locator(".players .cols th", { hasText: "Change" })
+  check((await head.count()) === 1, "opening night: the change has no day")
   await page.close()
+}
+
+// change since: a week, a month, opening night, each named in its head
+{
+  const page = await open("?season=2026&date=2026-03-15")
+  const head = () =>
+    page
+      .locator(".players .cols th button", { hasText: /^(Since|Change)/ })
+      .innerText()
+  check(
+    /since mar (7|8)/i.test(await head()),
+    `a week before (${await head()})`,
+  )
+  await page.selectOption("select[name=since]", "month")
+  check(
+    /since feb 1[0-5]/i.test(await head()),
+    `a month before (${await head()})`,
+  )
+  check(query(page).includes("since=month"), "since in the URL")
+  await page.selectOption("select[name=since]", "start")
+  check(
+    /since oct 2[0-2]/i.test(await head()),
+    `opening night (${await head()})`,
+  )
+  const delta = (await column(page, "delta")).filter(Number.isFinite)
+  check(
+    delta.length > 300 && Math.max(...delta.map(Math.abs)) > 2,
+    "since opening night: big moves",
+  )
+  await page.close()
+
+  // a month back from early in a season: opening night
+  const early = await open("?season=2026&date=2025-11-01&since=month")
+  const h = await early
+    .locator(".players .cols th button", { hasText: /^Since/ })
+    .innerText()
+  check(
+    /since oct 2[0-2]/i.test(h),
+    `a month before the season: its first day (${h})`,
+  )
+  await early.close()
 }
 
 // a past season, its final day, and a day in it it doesn't rate

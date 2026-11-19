@@ -9,7 +9,14 @@ import Base from "../layouts/Base.astro"
 
 <script>
   import { loadingText } from "../kit/mount"
-  import { loadSeason, QUALIFY, seasons as listSeasons, type Season } from "../players/load"
+  import {
+    loadSeason,
+    QUALIFY,
+    seasons as listSeasons,
+    sinceKeys,
+    type Season,
+    type Since,
+  } from "../players/load"
   import {
     controls,
     fmtDay,
@@ -37,7 +44,7 @@ import Base from "../layouts/Base.astro"
     { className: "key" },
     ...[
       ["yarapm", el("a", { href: "https://github.com/llimllib/yarapm/" }, "yarapm"), "'s ratings: ridge RAPM on lineups, each player pulled toward a box-score prior, with older games weighted less. Offense, defense and total are points per 100 possessions better than the average player in that day's lineups"],
-      ["Week", "The total's change from yarapm's last rating at least seven days before. Blank in a season's first week"],
+      ["Since", "The total's change since the day in its head: yarapm's last rating a week or a month before the day, or its ratings on opening night, before a game, as Change since picks. A week or a month that reaches back before the season measures from opening night. Blank for a player it didn't rate then"],
       ["Box score", "What his box score alone says: the prior yarapm pulls his ratings toward, from a formula it fits on earlier seasons"],
       ["Beyond box", "What the lineup data adds: his total minus his box score. It builds over seasons, not just this one, with older games counting less. High for players whose impact doesn't show in the box score"],
       ["Role", "This regular season, in the games before the day"],
@@ -52,6 +59,7 @@ import Base from "../layouts/Base.astro"
   let s: State = {
     season: +(q.get("season") ?? 0),
     date: q.get("date") ?? "",
+    since: sinceKeys.includes(q.get("since") as Since) ? (q.get("since") as Since) : "week",
     team: (q.get("team") ?? "").toUpperCase(),
     sort: (sortKeys.has(q.get("sort") ?? "") ? q.get("sort") : "net") as SortKey,
     order: q.get("order") === "asc" ? "asc" : "desc",
@@ -73,6 +81,7 @@ import Base from "../layouts/Base.astro"
     const out = new URLSearchParams()
     if (s.season !== latest) out.set("season", String(s.season))
     if (data && s.date !== data.days.at(-1)) out.set("date", s.date)
+    if (s.since !== "week") out.set("since", s.since)
     if (s.team) out.set("team", s.team)
     if (s.sort !== "net") out.set("sort", s.sort)
     if (s.order === "asc") out.set("order", "asc")
@@ -86,11 +95,11 @@ import Base from "../layouts/Base.astro"
     if (!data) return
     // a day it doesn't rate: the last one before it, or its first
     if (!data.days.includes(s.date))
-      s.date = data.days.filter(d => d <= s.date).at(-1) ?? data.days.at(-1)!
+      s.date = data.days.filter(d => d <= s.date).at(-1) ?? data.days[0]
     if (s.team && !data.teams.some(t => t.abbrev === s.team)) s.team = ""
     ctl.update(data, all, s)
     save()
-    const players = data.on(s.date)
+    const { players, from } = data.on(s.date, s.since)
     const n = rows(players, s).shown.length
     const last = s.date === data.days.at(-1)
     const finished = s.season !== all[0] && last
@@ -102,7 +111,7 @@ import Base from "../layouts/Base.astro"
     )
     holder.replaceChildren(
       // a new column sorts best first; the same one again, the other way
-      table(players, s, sort => {
+      table(players, s, from, sort => {
         const order = sort === s.sort && s.order === "desc" ? "asc" : "desc"
         s = { ...s, sort, order }
         draw()
