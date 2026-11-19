@@ -27,6 +27,68 @@ function inline(url: string): Promise<string | undefined> {
   return p
 }
 
+// An image the size it's drawn at in the PNG. The browser rasterizes an SVG
+// drawn to a canvas without mipmaps, so a 500px logo squeezed into a 45px
+// box comes out aliased and pixelly. Halving it on a canvas until it's
+// close, then one last smooth step, averages every source pixel in
+const resampled = new Map<string, Promise<string | undefined>>()
+
+function resample(
+  src: string,
+  boxW: number,
+  boxH: number,
+): Promise<string | undefined> {
+  const key = `${boxW}x${boxH} ${src}`
+  let p = resampled.get(key)
+  if (!p) {
+    p = (async () => {
+      const img = new Image()
+      img.src = src
+      await img.decode()
+      const nw = img.naturalWidth
+      const nh = img.naturalHeight
+      if (!nw || !nh) return src
+      // fit the image in its box, as preserveAspectRatio's default does
+      const fit = Math.min(boxW / nw, boxH / nh)
+      const w = Math.max(1, Math.round(nw * fit))
+      const h = Math.max(1, Math.round(nh * fit))
+      if (w >= nw) return src
+      let from: CanvasImageSource = img
+      let fw = nw
+      let fh = nh
+      while (fw / 2 >= w && fh / 2 >= h) {
+        fw = Math.round(fw / 2)
+        fh = Math.round(fh / 2)
+        from = step(from, fw, fh)
+      }
+      return step(from, w, h).toDataURL("image/png")
+    })().catch(() => src)
+    resampled.set(key, p)
+  }
+  return p
+}
+
+function step(from: CanvasImageSource, w: number, h: number) {
+  const c = document.createElement("canvas")
+  c.width = w
+  c.height = h
+  const ctx = c.getContext("2d")!
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = "high"
+  ctx.drawImage(from, 0, 0, w, h)
+  return c
+}
+
+// How many viewBox units one of the element's own units is, from the
+// transforms between it and the SVG
+function unitScale(svg: SVGSVGElement, el: SVGGraphicsElement): number {
+  const root = svg.getScreenCTM()
+  const own = el.getScreenCTM()
+  if (!root || !own) return 1
+  const m = root.inverse().multiply(own)
+  return Math.hypot(m.a, m.b) || 1
+}
+
 export interface ExportResult {
   blob: Blob
   missingImages: number
@@ -38,6 +100,12 @@ export async function toPng(
   scale = 2,
 ): Promise<ExportResult> {
   const clone = svg.cloneNode(true) as SVGSVGElement
+  // each cloned image beside the one it was cloned from, which is laid out
+  // and so knows its transforms
+  const originals = [...svg.querySelectorAll<SVGImageElement>("image")]
+  const images = [...clone.querySelectorAll<SVGImageElement>("image")].map(
+    (img, i) => [img, originals[i]] as const,
+  )
   clone.querySelectorAll(".no-export").forEach(e => e.remove())
 
   const faces = await Promise.all(
@@ -52,10 +120,18 @@ export async function toPng(
 
   let missingImages = 0
   await Promise.all(
-    [...clone.querySelectorAll("image")].map(async img => {
+    images.map(async ([img, original]) => {
+      if (!clone.contains(img)) return
       const href = img.getAttribute("href")
       if (!href || href.startsWith("data:")) return
-      const src = await inline(new URL(href, baseUrl).href)
+      let src = await inline(new URL(href, baseUrl).href)
+      if (src) {
+        const k = unitScale(svg, original) * scale
+        const w = Number(img.getAttribute("width")) * k
+        const h = Number(img.getAttribute("height")) * k
+        if (w > 0 && h > 0)
+          src = await resample(src, Math.ceil(w), Math.ceil(h))
+      }
       if (src) img.setAttribute("href", src)
       else {
         img.remove()
