@@ -170,7 +170,7 @@ function shown(d: D, p: P) {
 // player's days around it in the same season, `sigma` of his days wide.
 // Each season starts from a new prior, so the trend doesn't average across
 // them. It uses later days, so unlike the days themselves it's hindsight
-function smooth(days: Day[], sigma: number) {
+export function smooth(days: Pick<Day, "season" | "v">[], sigma: number) {
   const reach = Math.ceil(sigma * 3)
   return days.map((day, i) => {
     let [sum, total] = [0, 0]
@@ -198,7 +198,11 @@ function smoothing(d: D) {
 // at the value beside its name: by none of the gap `reach` days before the
 // end, all of it on the last day, easing in between. Only within the last
 // day's season, as the trend doesn't cross seasons
-function pinEnd(days: Day[], trend: number[], reach: number) {
+export function pinEnd(
+  days: Pick<Day, "season" | "v">[],
+  trend: number[],
+  reach: number,
+) {
   const last = days.length - 1
   if (last < 0) return trend
   const gap = days[last].v - trend[last]

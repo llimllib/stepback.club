@@ -30,7 +30,7 @@ All read at run time through `kit/data.ts`:
 - `player_season_stats`, every season from 2010, only the columns used:
   the career table and the comparables' input.
 - OpenRAPM, every season (about 24KB each).
-- The player's yarapm `ratings_daily`, every season from 2014: the chart,
+- The player's yarapm `ratings_daily`, every season yarapm rates: the chart,
   and the Ratings view's end-of-season yarapm. About 1MB a career; each
   file is sorted by player, so a player's rows are a few row groups.
 - ESPN's `net_pts_season` (2019 on).
@@ -64,20 +64,31 @@ Left out: playoff rows (a Playoffs tab later), per 36, percentiles.
 
 ## RAPM chart
 
-The `/rapm` tool in the frame: the player's yarapm total from 2013-14
-on, the trend over faint daily dots, the dots dropped once comparables
+RAPM over time's lines in the frame: the player's yarapm total from its
+first season on, the trend over faint daily dots, the dots dropped once comparables
 are added. "Open in RAPM over time" links to `/rapm` with the same
 players.
 
 **x is age, not date.** Comparables are matched by age, so a 2016
 player's season at 23 sits over this player's at 23. Each age is a band,
-the season's game days across it as `/rapm` lays them out, labeled with
-the age. `rapm.ts` gets an `x=age` option, which the player page uses;
-`/rapm` could offer it as a question later. Age is
-`player_season_stats.age` for each season.
+labeled with the age, and a day sits across it by where it falls between
+opening night and the season's last game (the season under way runs to
+where a typical season would end).
 
-Before 2013-14 there's no yarapm, so a career that starts earlier is
-drawn from 2014; one that ended earlier has no chart. Doing better (with
+Built as its own chart, `src/player/chart.ts`, sharing `rapm.ts`'s trend
+(`smooth`, `pinEnd`) and the kit's line labels, rather than as an `x=age`
+option on the tool: the tool reads whole seasons of every player, and the
+page reads only the players on it. `/rapm` could still offer age as a
+question later.
+
+**Age** is at the season's end. NBA.com gives a finished season's age at
+its end but the current season's as of today, so a player can be 28 in
+both; his age in a season is season − his most common season − age over
+his finished seasons.
+
+Before yarapm's first season (2011-12 as of this writing; 2013-14 when
+this was designed) there's no yarapm, so a career that starts earlier is
+drawn from then; one that ended earlier has no chart. Doing better (with
 OpenRAPM, or yarapm's history as it's backfilled) is future work.
 
 ## Comparables
@@ -99,7 +110,8 @@ Matching, a pure function in `src/player/comps.ts`:
 4. Distance is Euclidean; height and the two OpenRAPM sides count double.
    The 8 closest, one window a player.
 
-A comparable before 2014 is matched on 2010–13 but drawn only from 2014.
+A comparable whose career started before yarapm's first season is
+matched on his earlier seasons but drawn only from it.
 
 ## Game log
 
@@ -115,16 +127,25 @@ log.
 Each section fails alone, with a line in its place:
 
 - No id or an unknown one: the search.
-- No yarapm (missing, or a career before 2014): "yarapm rates seasons
-  from 2013-14"; Ratings still shows OpenRAPM.
+- No yarapm (missing, or a career before its first season): "yarapm
+  rates seasons from …"; Ratings still shows OpenRAPM.
 - No ESPN (missing, or before 2019): "—".
 - A rookie without games: the header and a table that says so; no
   comparables.
 - Comparables failing: the chart without chips.
 
+## Size
+
+The first build downloads about 7MB for a player with ten seasons (6s
+through a slow proxy): every regular season's stats since 2010 are 2.5MB,
+and a yarapm career about 280KB a season, as a player's rows fill most of
+a row group's column chunks. A comparable adds its yarapm career. A
+career table in nba_data (a row a player and season, with yarapm's
+last day) would cut both.
+
 ## Testing
 
 `node scripts/player-check.mjs [id]`, like the team and players checks:
 desktop and phone widths, each view, a comparable from the URL, a career
-before 2014, a rookie, an unknown id, yarapm and ESPN missing. Saves
+before yarapm, a rookie, an unknown id, yarapm and ESPN missing. Saves
 `shots/player-<width>.png` and the chart's export.

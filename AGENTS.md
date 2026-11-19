@@ -45,6 +45,10 @@ or the frame.
   and phone widths, sorting, the team filter, search, the day slider, a
   past season and yarapm missing; saves `shots/players-<width>.png` and
   `shots/players-team.png`
+- `node scripts/player-check.mjs [id]`: checks a player's page at desktop
+  and phone widths, each view, comparables from the URL and the chips, a
+  career from before yarapm, an unknown id and the search, and yarapm and
+  ESPN missing; saves `shots/player-<width>.png` and `shots/player-vs.png`
 - `npx astro check`: type check
 - `mise run lint`: formatting (oxfmt), lints (oxlint) and types. Run it
   before every commit; `mise run fmt` fixes the formatting. Nothing else
@@ -89,6 +93,10 @@ shared code was in `docs/lib/`. Don't restore it into the tree.
 - `src/players/`: the players page (`/players`), every player yarapm
   rates on a day in one sortable table, plain HTML. See
   `docs/plans/2026-11-18-players-design.md`
+- `src/player/`: a player's page (`/player?id=1628369`), plain HTML: his
+  career in four views, his yarapm by age against comparables
+  (`comps.ts`) in the kit's frame, and a season's games. See
+  `docs/plans/2026-11-18-player-page-design.md`
 - `src/notes/`: notes, as Markdown with their frozen data beside them;
   `src/sketches/`: the one-off charts they embed. See
   `docs/plans/2026-11-05-notes-design.md`

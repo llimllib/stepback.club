@@ -312,8 +312,8 @@ function playerCell(p: Player, season: number) {
     el(
       "a",
       {
-        href: `${base}rapm?players=${p.player_id}&from=${season}&to=${season}`,
-        title: `${p.name}'s yarapm over the season`,
+        href: `${base}player?id=${p.player_id}&season=${season}`,
+        title: `${p.name}'s page: his career, his yarapm by age, his games`,
       },
       p.name,
     ),

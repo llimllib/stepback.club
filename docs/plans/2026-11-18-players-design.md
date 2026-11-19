@@ -69,7 +69,7 @@ one scale, from the day's lowest total to its highest, so a team's view
 shows its players against the league. Zero sits where that range puts
 it, about a third of the way in, not in the middle, so the best players'
 bars start close to their numbers. Total's head spans the number and
-the bar, and a gap after the bar sets the change apart. The name links to RAPM over time for that season. On a
+the bar, and a gap after the bar sets the change apart. The name links to the player's page (`/player`, from 2026-11-18; it linked to RAPM over time for the season before). On a
 phone the name column sticks while the numbers scroll, and drops position
 and age.
 

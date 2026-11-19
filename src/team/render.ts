@@ -20,6 +20,7 @@ export function el<K extends keyof HTMLElementTagNameMap>(
 }
 
 const dash = "—"
+const siteBase = import.meta.env.BASE_URL.replace(/\/?$/, "/")
 // signed, one decimal: +5.1, −0.4
 export const signed = (v: number) => {
   if (!Number.isFinite(v)) return dash
@@ -370,7 +371,11 @@ const injuryLabel: Record<string, string> = {
 }
 
 function playerName(pl: RosterPlayer) {
-  const th = el("th", { scope: "row", className: "name" }, pl.name)
+  const th = el(
+    "th",
+    { scope: "row", className: "name" },
+    el("a", { href: `${siteBase}player?id=${pl.player_id}` }, pl.name),
+  )
   if (pl.injury) {
     const returns = pl.injury.returns
       ? `, expected back ${fmtDay(pl.injury.returns)}`

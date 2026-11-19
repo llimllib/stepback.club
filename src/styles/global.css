@@ -2026,6 +2026,15 @@ time {
   letter-spacing: 0;
 }
 
+.roster .name a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.roster .name a:hover {
+  text-decoration: underline;
+}
+
 .roster .cols .name {
   font-family: var(--agate);
   font-weight: 400;
@@ -2527,5 +2536,301 @@ svg.frame a:hover text {
 
   .players .name small {
     display: none;
+  }
+}
+
+/* --- a player's page: the team page's band and sections, with his
+   headshot in the box, his career a season to a row in four views, the
+   comparables under the chart, and a season's games. See
+   docs/plans/2026-11-18-player-page-design.md */
+.player-band .logo img {
+  width: 98px;
+  height: 72px;
+  object-fit: cover;
+}
+
+.player-band .tnums .team-link {
+  color: inherit;
+  text-decoration: underline;
+}
+
+/* the views: text links between rules, the current one in ink */
+.view-tabs {
+  display: flex;
+  gap: 1.4rem;
+  margin: 0 0 0.6rem;
+  font-family: var(--agate);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.view-tabs a {
+  text-decoration: none;
+  color: var(--muted);
+}
+
+.view-tabs a:hover {
+  text-decoration: underline;
+}
+
+.view-tabs a[aria-current="page"] {
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.3em;
+}
+
+.career .season {
+  text-align: left;
+  padding-left: 0;
+  font-family: var(--agate);
+}
+
+.career .cols .season,
+.career .cols .team {
+  text-align: left;
+}
+
+.career td.team {
+  text-align: left;
+}
+
+.career td.team small {
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+
+.career .season a {
+  text-decoration: none;
+}
+
+.career .season a:hover {
+  text-decoration: underline;
+}
+
+/* the season the games and comparables are for */
+.career tbody tr.current > * {
+  background: #e8e4d8;
+}
+
+.career tbody tr.current .season {
+  font-weight: 700;
+}
+
+.career tfoot tr > * {
+  border-top: var(--rule);
+  font-weight: 700;
+}
+
+.chart-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
+  max-width: 720px;
+  margin-top: 0.6rem;
+}
+
+.chart-actions[hidden] {
+  display: none;
+}
+
+.chart-actions .export-row {
+  margin: 0;
+}
+
+.open-rapm {
+  font-family: var(--agate);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.player-chart .note {
+  margin: 0;
+}
+
+/* the comparables: a row each of picked players, suggestions and a search,
+   each under an agate label */
+.comps {
+  margin: 0.8rem 0 0;
+  border-top: var(--rule);
+}
+
+.comps-row {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: 0.8rem;
+  align-items: baseline;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #dcd7ca;
+}
+
+.comps .label {
+  font-family: var(--agate);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.comps .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.5rem;
+}
+
+.comps .chip {
+  padding: 0.15rem 0.45rem;
+  border: var(--rule);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 600 0.9rem var(--head);
+  cursor: pointer;
+}
+
+.comps .chip:hover {
+  background: #e8e4d8;
+}
+
+.comps .chip small {
+  font-family: var(--agate);
+  font-weight: 400;
+  font-size: 0.65rem;
+  color: var(--muted);
+}
+
+.comps .chip .swatch {
+  display: inline-block;
+  width: 0.9rem;
+  margin-right: 0.35rem;
+  vertical-align: middle;
+  border-top: 3px solid var(--c);
+}
+
+.comps .chip .swatch.dashed {
+  border-top-style: dashed;
+}
+
+.comps .none {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.comps .add {
+  position: relative;
+  max-width: 20rem;
+}
+
+.comps input,
+.player-search input {
+  width: 100%;
+  font: 600 1rem var(--head);
+  padding: 0.25rem;
+  border: var(--rule);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.comps .results {
+  display: flex;
+  flex-direction: column;
+}
+
+.comps .results button {
+  padding: 0.2rem 0;
+  border: 0;
+  border-bottom: 1px solid #dcd7ca;
+  background: none;
+  color: var(--ink);
+  font: 0.95rem var(--serif);
+  text-align: left;
+  cursor: pointer;
+}
+
+.comps .results button:hover {
+  text-decoration: underline;
+}
+
+.player-controls.one {
+  grid-template-columns: minmax(0, 12rem);
+  border-top: 0;
+  margin-bottom: 0.5rem;
+}
+
+.player-games .strong {
+  font-weight: 700;
+}
+
+.player-games .date a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.player-games .date a:hover {
+  text-decoration: underline;
+}
+
+.player-games .opens {
+  border-left: var(--rule);
+}
+
+.player-games tbody tr.section > td {
+  padding: 0.9rem 0 0.25rem;
+  text-align: left;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-top: 0;
+  border-bottom: var(--rule);
+}
+
+.player-games tbody tr.section:first-child > td {
+  padding-top: 0.3rem;
+}
+
+/* the index: a search and the players matching it */
+.player-search {
+  max-width: 32rem;
+}
+
+.player-index {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+}
+
+.player-index a {
+  display: block;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid #dcd7ca;
+  font-family: var(--head);
+  font-weight: 600;
+  font-size: 1.05rem;
+  text-decoration: none;
+}
+
+.player-index a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 760px) {
+  .comps-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.3rem;
+  }
+
+  /* the season stays put as the numbers scroll under it */
+  .career .season {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--paper);
+    border-right: var(--rule);
   }
 }

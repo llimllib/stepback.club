@@ -1,0 +1,346 @@
+---
+import Base from "../layouts/Base.astro"
+---
+
+<Base title="Player" description="A player's career: his stats a season to a row, his yarapm by age against players like him, and his games">
+  <span class="kicker">Player</span>
+  <p id="status" class="note team-status"></p>
+  <div id="player" class="team-page player-page"></div>
+</Base>
+
+<script>
+  import { exportRow } from "../kit/export"
+  import { fontsReady } from "../kit/frame"
+  import { loadingText } from "../kit/mount"
+  import { chartFrame, type Line } from "../player/chart"
+  import { comparables } from "../player/comps"
+  import {
+    bio,
+    gameLog,
+    loadLeague,
+    seasonSpans,
+    yarapmCareer,
+    yarapmSeasons,
+    type Game,
+    type League,
+    type RatingDay,
+  } from "../player/load"
+  import {
+    careerRows,
+    careerTable,
+    compChips,
+    fmtSeason,
+    gameLogTable,
+    playerBand,
+    playerIndex,
+    viewTabs,
+    views,
+    type Sort,
+    type View,
+  } from "../player/render"
+  import { el } from "../team/render"
+
+  const $ = (id: string) => document.getElementById(id)!
+  const [status, body] = [$("status"), $("player")]
+  const head = (text: string | Node, id?: string) =>
+    el("h2", { className: "kicker section-head", ...(id ? { id } : {}) }, text)
+  const link = (href: string, text: string) => el("a", { href }, text)
+  // the season control, under its agate label
+  function seasonField(select: HTMLSelectElement) {
+    const label = document.createElement("label")
+    label.className = "field"
+    label.append(el("span", {}, "Season"), select)
+    const form = document.createElement("form")
+    form.className = "player-controls one"
+    form.addEventListener("submit", e => e.preventDefault())
+    form.append(label)
+    return form
+  }
+  // most of a page's comparables
+  const MAX_VS = 7
+
+  const q = new URLSearchParams(location.search)
+  const s = {
+    id: q.get("id") ?? "",
+    season: +(q.get("season") ?? 0),
+    view: (views.some(v => v.key === q.get("view")) ? q.get("view") : "ratings") as View,
+    vs: (q.get("vs") ?? "").split(",").filter(Boolean),
+  }
+  let sort: Sort = { key: "season", asc: false }
+
+  // the state in the URL, without its defaults
+  function url(patch: Partial<typeof s> = {}, latest?: number) {
+    const t = { ...s, ...patch }
+    const out = new URLSearchParams({ id: t.id })
+    if (t.season && t.season !== latest) out.set("season", String(t.season))
+    if (t.view !== "ratings") out.set("view", t.view)
+    if (t.vs.length) out.set("vs", t.vs.join(","))
+    return `${location.pathname}?${out}`
+  }
+
+  // every player with seasons, for the searches: "Name, 2015–2027"
+  function everyone(l: League, from = 0) {
+    return [...l.byPlayer]
+      .filter(([, list]) => list.at(-1)!.season >= from)
+      .map(([id, list]) => ({
+        id,
+        name: l.names.get(id) ?? id,
+        label: `${l.names.get(id) ?? id}, ${list[0].season - 1}–${list.at(-1)!.season}`,
+        last: list.at(-1)!.season,
+      }))
+      .sort((a, b) => b.last - a.last || a.name.localeCompare(b.name))
+  }
+
+  async function index(l: League) {
+    document.title = "Players · Step Back Club"
+    body.replaceChildren(el("h1", {}, "Players"), playerIndex(everyone(l)))
+  }
+
+  async function show() {
+    body.innerHTML = loadingText()
+    body.dataset.state = "loading"
+    let l: League
+    try {
+      ;[l] = await Promise.all([loadLeague(), fontsReady()])
+    } catch (e) {
+      console.error(e)
+      body.replaceChildren()
+      status.replaceChildren("Couldn't load the players.")
+      body.dataset.state = "failed"
+      return
+    }
+    if (!s.id) {
+      await index(l)
+      body.dataset.state = "done"
+      return
+    }
+    const b = await bio(l, s.id).catch(() => undefined)
+    if (!b) {
+      await index(l)
+      status.replaceChildren(`No player with the id "${s.id}". Find one:`)
+      body.dataset.state = "empty"
+      return
+    }
+    document.title = `${b.name} · Step Back Club`
+    const mine = l.byPlayer.get(s.id) ?? []
+    const seasons = mine.map(x => x.season).toReversed()
+    const latest = seasons[0] ?? l.last
+    if (!seasons.includes(s.season)) s.season = latest
+    const offset = l.offsets.get(s.id)
+
+    // yarapm: the seasons it rates that he played, and this one if he's on
+    // a team. Each section fails on its own
+    const ym = await yarapmSeasons().catch(() => undefined)
+    const rated = (id: string, also: number[] = []) =>
+      ym
+        ? [...new Set([...(l.byPlayer.get(id) ?? []).map(x => x.season), ...also])]
+            .filter(x => x >= ym.first && x <= ym.last)
+            .sort()
+        : []
+    const careers = new Map<string, Promise<RatingDay[]>>()
+    const career = (id: string) => {
+      let c = careers.get(id)
+      if (!c) careers.set(id, (c = yarapmCareer(id, rated(id), false)))
+      return c
+    }
+    const allYm: number[] = []
+    if (ym) for (let x = ym.first; x <= ym.last; x++) allYm.push(x)
+    const [ratings, spans] = await Promise.all([
+      yarapmCareer(s.id, rated(s.id, b.current ? [l.last] : [])).catch(e => {
+        console.error(e)
+        return undefined
+      }),
+      seasonSpans(allYm, ym?.last ?? 0).catch(() => new Map()),
+    ])
+    if (ratings) careers.set(s.id, Promise.resolve(ratings))
+
+    // --- the sections, each redrawn when what it shows changes
+    const tableHolder = el("div", { className: "players-table" })
+    const tabsHolder = el("div")
+    const chart = el("div", { className: "team-chart player-chart" })
+    const chips = el("div")
+    // the same players in RAPM over time, by date
+    const openRapm = el("a", { className: "open-rapm" }, "Open in RAPM over time →")
+    const actions = el(
+      "div",
+      { className: "chart-actions" },
+      exportRow(chart, `${b.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-rapm`),
+      openRapm,
+    )
+    // no chart: a line saying why, and no export or chips
+    const noChart = (why: string) => {
+      chart.replaceChildren(el("p", { className: "note" }, why))
+      chips.replaceChildren()
+      actions.hidden = true
+    }
+    const gamesHead = head("Games")
+    const gamesHolder = el("div")
+    const seasonSelect: HTMLSelectElement = document.createElement("select")
+    seasonSelect.name = "season"
+    for (const x of seasons) {
+      const o = document.createElement("option")
+      Object.assign(o, { value: String(x), selected: x === s.season, textContent: fmtSeason(x) })
+      seasonSelect.append(o)
+    }
+    seasonSelect.addEventListener("change", () => setSeason(+seasonSelect.value))
+
+    const save = () => {
+      const u = url({}, latest)
+      if (u !== location.pathname + location.search) history.replaceState(null, "", u)
+    }
+
+    function drawTable() {
+      tabsHolder.replaceChildren(
+        viewTabs(s.view, v => url({ view: v }, latest), v => {
+          s.view = v
+          save()
+          drawTable()
+        }),
+      )
+      if (!mine.length) {
+        tabsHolder.replaceChildren()
+        tableHolder.replaceChildren(el("p", { className: "note" }, "No games yet."))
+        return
+      }
+      tableHolder.replaceChildren(
+        careerTable(
+          careerRows(mine, offset, ratings ?? []),
+          s.view,
+          sort,
+          s.season,
+          key => {
+            sort = sort.key === key ? { key, asc: !sort.asc } : { key, asc: false }
+            drawTable()
+          },
+          season => setSeason(season),
+          season => url({ season }, latest),
+        ),
+      )
+    }
+
+    // the age he's compared at, and the players like him then
+    const compsAt = () =>
+      comparables(l.byPlayer, l.offsets, s.id, s.season, { drawnFrom: ym?.first ?? 0 }).map(c => ({
+        ...c,
+        name: l.names.get(c.player_id) ?? c.player_id,
+      }))
+    const anyone = ym ? everyone(l, ym.first).filter(p => p.id !== s.id) : []
+
+    let drawn = 0
+    async function drawChart() {
+      const n = ++drawn
+      if (!mine.length) return noChart("No games yet, so nothing to chart by age.")
+      if (!ratings) return noChart("Couldn't load yarapm's ratings.")
+      if (!ratings.length)
+        return noChart(`yarapm rates seasons from ${fmtSeason(ym?.first ?? 2012)}; it has none of his.`)
+      const ids = [s.id, ...s.vs]
+      const days = await Promise.all(ids.map(id => career(id).catch(() => [] as RatingDay[])))
+      if (n !== drawn) return
+      const lines: Line[] = ids.flatMap((id, i) => {
+        const o = l.offsets.get(id)
+        if (o === undefined || !days[i].length) return []
+        return [{ id, name: l.names.get(id) ?? id, offset: o, days: days[i] }]
+      })
+      // a player with no games has no age to chart by
+      if (!lines.length || lines[0].id !== s.id)
+        return noChart("No games yet, so nothing to chart by age.")
+      chartFrame(chart, lines, spans, b!.team)
+      actions.hidden = false
+      const span = lines.flatMap(x => x.days.map(d => d.season))
+      openRapm.href = `${import.meta.env.BASE_URL.replace(/\/?$/, "/")}rapm?players=${lines.map(x => x.id).join(",")}&from=${Math.min(...span)}&to=${Math.max(...span)}`
+      const age = offset === undefined ? NaN : s.season - offset
+      chips.replaceChildren(
+        compChips(
+          compsAt(),
+          lines.slice(1).map(x => ({ id: x.id, name: x.name })),
+          age,
+          anyone,
+          id => {
+            if (s.vs.includes(id) || s.vs.length >= MAX_VS) return
+            s.vs = [...s.vs, id]
+            save()
+            drawChart()
+          },
+          id => {
+            s.vs = s.vs.filter(x => x !== id)
+            save()
+            drawChart()
+          },
+        ),
+      )
+    }
+
+    let loadedGames = 0
+    async function drawGames() {
+      const n = ++loadedGames
+      gamesHead.replaceChildren(`Games, ${fmtSeason(s.season)}`)
+      if (!mine.length) {
+        gamesHolder.replaceChildren(el("p", { className: "note" }, "No games yet."))
+        return
+      }
+      gamesHolder.innerHTML = loadingText()
+      let games: Game[]
+      try {
+        games = await gameLog(s.id, s.season)
+      } catch (e) {
+        console.error(e)
+        if (n === loadedGames)
+          gamesHolder.replaceChildren(el("p", { className: "note" }, "Couldn't load his games."))
+        return
+      }
+      if (n !== loadedGames) return
+      gamesHolder.replaceChildren(
+        games.length ? gameLogTable(games) : el("p", { className: "note" }, "No games this season."),
+      )
+    }
+
+    function setSeason(season: number) {
+      if (season === s.season) return
+      s.season = season
+      seasonSelect.value = String(season)
+      save()
+      drawTable()
+      drawChart()
+      drawGames()
+    }
+
+    // players whose names were in the URL but who aren't rated drop out
+    s.vs = s.vs.filter(id => id !== s.id && l.names.has(id)).slice(0, MAX_VS)
+    save()
+
+    body.replaceChildren(
+      playerBand(b),
+      head("Career"),
+      tabsHolder,
+      tableHolder,
+      head("RAPM by age"),
+      chart,
+      actions,
+      chips,
+      gamesHead,
+      seasonField(seasonSelect),
+      gamesHolder,
+      head("Key"),
+      el(
+        "dl",
+        { className: "key" },
+        ...[
+          ["yarapm", link("https://github.com/llimllib/yarapm/", "yarapm"), `'s ratings, on the season's last day (a finished season's includes its playoffs): points per 100 possessions better than the average player. The chart is every day's, from the games before it. yarapm rates seasons from ${fmtSeason(ym?.first ?? 2012)}`],
+          ["Box score", "What his box score alone says: the prior yarapm pulls his ratings toward"],
+          ["Beyond box", "What the lineup data adds: his total minus his box score"],
+          ["OpenRAPM", link("https://openrapm.com", "OpenRAPM"), "'s total for the season"],
+          ["Net pts", link("https://espnanalytics.com/", "ESPN Analytics"), "' net points per 100 of his team's possessions, from 2018–19. Blank under 200 possessions. In a game, his net points"],
+          ["Age", "At the season's end"],
+          ["Like him", "The players whose three seasons up to his age in the season picked were nearest his three: height, minutes, scoring, passing, rebounding, steals, blocks, threes and free throws per 100 possessions, usage, true shooting, and OpenRAPM's offense and defense, with height and OpenRAPM counting double. From 2009–10 on, with at least 1,000 minutes"],
+          ["Career", "From his totals; rates weighted by minutes, on-court ratings by possessions"],
+        ].flatMap(([term, ...def]) => [el("dt", {}, term as string), el("dd", {}, ...def)]),
+      ),
+    )
+    drawTable()
+    drawGames()
+    await drawChart()
+    status.replaceChildren()
+    body.dataset.state = "done"
+  }
+  show()
+</script>
