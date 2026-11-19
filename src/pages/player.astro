@@ -140,7 +140,12 @@ import Base from "../layouts/Base.astro"
     const careers = new Map<string, Promise<RatingDay[]>>()
     const career = (id: string) => {
       let c = careers.get(id)
-      if (!c) careers.set(id, (c = yarapmCareer(id, rated(id), false)))
+      if (!c) {
+        c = yarapmCareer(id, rated(id), false)
+        // a career that failed is fetched again next time it's drawn
+        c.catch(() => careers.delete(id))
+        careers.set(id, c)
+      }
       return c
     }
     const allYm: number[] = []
@@ -234,13 +239,30 @@ import Base from "../layouts/Base.astro"
       if (!ratings.length)
         return noChart(`yarapm rates seasons from ${fmtSeason(ym?.first ?? 2012)}; it has none of his.`)
       const ids = [s.id, ...s.vs]
-      const days = await Promise.all(ids.map(id => career(id).catch(() => [] as RatingDay[])))
+      // undefined for a career that couldn't be loaded, which is left off
+      // and named under the chart rather than drawn with holes
+      const days = await Promise.all(
+        ids.map(id =>
+          career(id).catch(e => {
+            console.error(e)
+            return undefined
+          }),
+        ),
+      )
       if (n !== drawn) return
+      const failedIds = ids.slice(1).filter((_, i) => !days[i + 1])
+      const failed = failedIds.map(id => l.names.get(id) ?? id)
+      if (failedIds.length) {
+        s.vs = s.vs.filter(id => !failedIds.includes(id))
+        save()
+      }
       const lines: Line[] = ids.flatMap((id, i) => {
         const o = l.offsets.get(id)
-        if (o === undefined || !days[i].length) return []
-        return [{ id, name: l.names.get(id) ?? id, offset: o, days: days[i] }]
+        const d = days[i]
+        if (o === undefined || !d?.length) return []
+        return [{ id, name: l.names.get(id) ?? id, offset: o, days: d }]
       })
+      if (!days[0]) return noChart("Couldn't load yarapm's ratings.")
       // a player with no games has no age to chart by
       if (!lines.length || lines[0].id !== s.id)
         return noChart("No games yet, so nothing to chart by age.")
@@ -250,6 +272,9 @@ import Base from "../layouts/Base.astro"
       openRapm.href = `${import.meta.env.BASE_URL.replace(/\/?$/, "/")}rapm?players=${lines.map(x => x.id).join(",")}&from=${Math.min(...span)}&to=${Math.max(...span)}`
       const age = offset === undefined ? NaN : s.season - offset
       chips.replaceChildren(
+        ...(failed.length
+          ? [el("p", { className: "note" }, `Couldn't load ${failed.join(" or ")}'s ratings; try adding them again.`)]
+          : []),
         compChips(
           compsAt(),
           lines.slice(1).map(x => ({ id: x.id, name: x.name })),

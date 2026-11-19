@@ -7,9 +7,9 @@
 // ~/code/nba-rapm/docs/DATA.md
 import {
   asyncBufferFromUrl,
-  cachedAsyncBuffer,
   parquetMetadataAsync,
   parquetReadObjects,
+  type AsyncBuffer,
   type ParquetQueryFilter,
 } from "hyparquet"
 import { compressors } from "hyparquet-compressors"
@@ -23,6 +23,39 @@ export function datasetUrl(source: string, dataset: string, season: number) {
   return `${BASE}/${root}/${dataset}/season=${season}/data.parquet`
 }
 
+// hyparquet's cachedAsyncBuffer, except that a fetch that fails is
+// forgotten: hyparquet's keeps the rejected promise, so a range that failed
+// once (a dropped connection) failed every read of it for the life of the
+// page. A file under 512KB is fetched whole, a larger one by the ranges read
+const WHOLE = 1 << 19
+function cached({ byteLength, slice }: AsyncBuffer): AsyncBuffer {
+  const ranges = new Map<string, Promise<ArrayBuffer>>()
+  const fetchRange = (key: string, start: number, end?: number) => {
+    let p = ranges.get(key)
+    if (!p) {
+      p = Promise.resolve(slice(start, end))
+      p.catch(() => ranges.delete(key))
+      ranges.set(key, p)
+    }
+    return p
+  }
+  if (byteLength < WHOLE)
+    return {
+      byteLength,
+      slice: async (start, end) =>
+        (await fetchRange("whole", 0, byteLength)).slice(start, end),
+    }
+  return {
+    byteLength,
+    slice(start, end) {
+      // a suffix range is the same bytes as its absolute one
+      const s = start < 0 ? byteLength + start : start
+      const e = end ?? byteLength
+      return fetchRange(`${s},${e}`, s, e)
+    },
+  }
+}
+
 const cache = new Map<string, Promise<Row[]>>()
 const files = new Map<string, ReturnType<typeof fetchFile>>()
 
@@ -31,7 +64,7 @@ const files = new Map<string, ReturnType<typeof fetchFile>>()
 // share it, so a page whose tools want different columns of the same file
 // downloads it once
 async function fetchFile(url: string) {
-  return cachedAsyncBuffer(await asyncBufferFromUrl({ url }))
+  return cached(await asyncBufferFromUrl({ url }))
 }
 function sharedFile(url: string) {
   let f = files.get(url)
@@ -72,7 +105,7 @@ const opened = new Map<string, ReturnType<typeof open>>()
 // A file and its footer, read once. hyparquet's first read is otherwise the
 // file's last 512KB, which for a table read a game at a time is most of it
 async function open(url: string) {
-  const file = cachedAsyncBuffer(await asyncBufferFromUrl({ url }))
+  const file = cached(await asyncBufferFromUrl({ url }))
   const footer = await parquetMetadataAsync(file, {
     initialFetchSize: 131_072,
   })

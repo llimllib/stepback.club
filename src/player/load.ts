@@ -8,6 +8,19 @@ import { metadata, read, readWhere, type Row } from "../kit/data"
 // a dataset a season may not have
 const none = () => [] as Row[]
 
+// A read, tried again once after a moment if it fails: a page that reads
+// a hundred files will sometimes lose one to the network. The kit's
+// readers drop a failed read from their caches, so the second try fetches
+// it again
+export async function retry<T>(f: () => Promise<T>): Promise<T> {
+  try {
+    return await f()
+  } catch {
+    await new Promise(r => setTimeout(r, 500))
+    return f()
+  }
+}
+
 export const iso = (d: Date | string) =>
   typeof d === "string" ? d.slice(0, 10) : d.toISOString().slice(0, 10)
 
@@ -319,11 +332,15 @@ export async function yarapmCareer(
         "possessions",
       ]
     : ["as_of_date", "player_id", "rating", "possessions"]
+  // a season he wasn't rated in reads no rows; a read that fails twice
+  // fails the career, rather than leaving a hole in it that reads as data
   const per = await Promise.all(
     seasons.map(s =>
-      readWhere("yarapm", "ratings_daily", s, cols, {
-        player_id: { $eq: id },
-      }).catch(none),
+      retry(() =>
+        readWhere("yarapm", "ratings_daily", s, cols, {
+          player_id: { $eq: id },
+        }),
+      ),
     ),
   )
   return per
@@ -348,7 +365,7 @@ export async function yarapmCareer(
 export async function seasonSpans(seasons: number[], current: number) {
   const per = await Promise.all(
     seasons.map(s =>
-      read("stats", "games", s, ["game_date", "game_type"]).catch(none),
+      retry(() => read("stats", "games", s, ["game_date", "game_type"])),
     ),
   )
   const spans = new Map<number, { start: number; end: number }>()

@@ -139,6 +139,38 @@ for (const width of [1100, 390]) {
   await page.close()
 }
 
+// a comparable's season failing to load: once, it's fetched again and his
+// whole career is drawn; every time, he's left off and named, never drawn
+// with a hole in his career (Dirk Nowitzki's 2015–16, beside Wembanyama,
+// whose seasons are all later)
+for (const times of [1, Infinity]) {
+  const page = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+  let failures = 0
+  await page.route("**/yarapm/ratings_daily/season=2016/**", r =>
+    failures++ < times ? r.abort() : r.continue(),
+  )
+  await page.goto(`${server}player?id=1641705&vs=1717`)
+  await page.waitForSelector("#player:not([data-state=loading])[data-state]", {
+    state: "attached",
+    timeout: 60_000,
+  })
+  const svg = await page.locator(".player-chart svg").textContent()
+  const chips = await page.locator(".player-page").textContent()
+  if (times === 1)
+    check(
+      svg.includes("Dirk Nowitzki") && svg.includes("2 players"),
+      "a season failing once: retried, both careers drawn",
+    )
+  else
+    check(
+      !svg.includes("Dirk Nowitzki") &&
+        chips.includes("Couldn't load Dirk Nowitzki's ratings") &&
+        !page.url().includes("vs="),
+      "a season failing every time: left off, and says so",
+    )
+  await page.close()
+}
+
 // LeBron, who started before yarapm; Yao Ming, who finished before it
 {
   const page = await open("?id=2544")

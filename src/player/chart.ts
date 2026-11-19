@@ -55,8 +55,18 @@ interface Pt {
   trend: number
 }
 
-function series(lines: Line[], spans: Spans) {
+function series(lines: Line[], given: Spans) {
   const seasons = new Set(lines.flatMap(l => l.days.map(d => d.season)))
+  // a season whose schedule couldn't be read spans the days rated in it,
+  // rather than piling them all at its band's left edge
+  const spans: Spans = new Map(given)
+  for (const season of seasons)
+    if (!spans.has(season)) {
+      const t = lines.flatMap(l =>
+        l.days.filter(d => d.season === season).map(d => +d.date),
+      )
+      spans.set(season, { start: Math.min(...t), end: Math.max(...t) })
+    }
   // about a week a season wide, up to six weeks over a career, as in
   // RAPM over time
   const sigma = Math.min(20, Math.max(2, (seasons.size * 170) / 50))
@@ -65,12 +75,13 @@ function series(lines: Line[], spans: Spans) {
     const runs: Pt[][] = []
     l.days.forEach((day, j) => {
       const span = spans.get(day.season)
-      const frac = span
-        ? Math.min(
-            1,
-            Math.max(0, (+day.date - span.start) / (span.end - span.start)),
-          )
-        : 0
+      const frac =
+        span && span.end > span.start
+          ? Math.min(
+              1,
+              Math.max(0, (+day.date - span.start) / (span.end - span.start)),
+            )
+          : 0
       const prev = l.days[j - 1]
       if (
         !prev ||
