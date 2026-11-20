@@ -22,6 +22,7 @@ import { color, type } from "../kit/theme"
 import type { Body, Mark, Tool } from "../kit/tool"
 
 const seasons = [2027, 2026, 2025]
+const siteBase = import.meta.env.BASE_URL.replace(/\/?$/, "/")
 
 // game is a game id; empty means the team's latest game
 // all: every field goal and turnover on the bars, not just fouls
@@ -870,7 +871,10 @@ export const rotations: Tool<P, D> = {
     for (const { r, y: top } of placed) {
       const cy = top + rowH / 2
       const row = plot.append("g").attr("transform", `translate(0,${cy})`)
+      // the name links to the player's page
       row
+        .append("a")
+        .attr("href", `${siteBase}player?id=${r.player_id}`)
         .append("text")
         .attr("x", 0)
         .attr("y", 4.5)
