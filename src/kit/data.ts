@@ -6,7 +6,6 @@
 // too, though they're its own catalog, at yarapm/<dataset>/...; see
 // ~/code/nba-rapm/docs/DATA.md
 import {
-  asyncBufferFromUrl,
   parquetMetadataAsync,
   parquetReadObjects,
   type AsyncBuffer,
@@ -23,49 +22,72 @@ export function datasetUrl(source: string, dataset: string, season: number) {
   return `${BASE}/${root}/${dataset}/season=${season}/data.parquet`
 }
 
-// hyparquet's cachedAsyncBuffer, except that a fetch that fails is
-// forgotten: hyparquet's keeps the rejected promise, so a range that failed
-// once (a dropped connection) failed every read of it for the life of the
-// page. A file under 512KB is fetched whole, a larger one by the ranges read
-const WHOLE = 1 << 19
-function cached({ byteLength, slice }: AsyncBuffer): AsyncBuffer {
+// A file changed on the bucket between two requests for its bytes
+class FileChanged extends Error {}
+
+const TAIL = 1 << 19
+
+// Total size from a 206's `Content-Range: bytes 0-99/1234`
+function rangeTotal(res: Response) {
+  const m = /\/(\d+)$/.exec(res.headers.get("content-range") ?? "")
+  return m ? Number(m[1]) : undefined
+}
+
+// A file, as hyparquet's AsyncBuffer, with its size from the same response
+// as its bytes. hyparquet's asyncBufferFromUrl sizes a file with a HEAD
+// request, and right after nba_data rewrites a file a browser's cache can
+// answer the HEAD and the GET with different versions of it (Firefox did),
+// so the footer isn't where the size says: "footer != PAR1". The first
+// request is the file's last 512KB instead, which is all of a small file
+// (most of them), and a larger one's footer. A larger file's other ranges
+// are fetched as read, once each, and must be the same version (ETag and
+// size) as its tail; a range that fails is forgotten, so it's retried
+async function fetchFile(url: string): Promise<AsyncBuffer> {
+  const res = await fetch(url, { headers: { Range: `bytes=-${TAIL}` } })
+  if (!res.ok) throw new Error(`fetch failed ${res.status}: ${url}`)
+  const tail = await res.arrayBuffer()
+  const byteLength =
+    res.status === 206 ? (rangeTotal(res) ?? tail.byteLength) : tail.byteLength
+  const tailStart = byteLength - tail.byteLength
+  if (tailStart === 0)
+    return { byteLength, slice: (start, end) => tail.slice(start, end) }
+
+  const etag = res.headers.get("etag")
   const ranges = new Map<string, Promise<ArrayBuffer>>()
-  const fetchRange = (key: string, start: number, end?: number) => {
-    let p = ranges.get(key)
-    if (!p) {
-      p = Promise.resolve(slice(start, end))
-      p.catch(() => ranges.delete(key))
-      ranges.set(key, p)
-    }
-    return p
+  const fetchRange = async (start: number, end: number) => {
+    const r = await fetch(url, {
+      headers: { Range: `bytes=${start}-${end - 1}` },
+    })
+    if (r.status !== 206) throw new Error(`fetch failed ${r.status}: ${url}`)
+    const tag = r.headers.get("etag")
+    if (rangeTotal(r) !== byteLength || (etag && tag && tag !== etag))
+      throw new FileChanged(`${url} changed while it was read`)
+    return r.arrayBuffer()
   }
-  if (byteLength < WHOLE)
-    return {
-      byteLength,
-      slice: async (start, end) =>
-        (await fetchRange("whole", 0, byteLength)).slice(start, end),
-    }
   return {
     byteLength,
     slice(start, end) {
-      // a suffix range is the same bytes as its absolute one
       const s = start < 0 ? byteLength + start : start
       const e = end ?? byteLength
-      return fetchRange(`${s},${e}`, s, e)
+      if (s >= tailStart) return tail.slice(s - tailStart, e - tailStart)
+      const key = `${s},${e}`
+      let p = ranges.get(key)
+      if (!p) {
+        p = fetchRange(s, e)
+        p.catch(() => ranges.delete(key))
+        ranges.set(key, p)
+      }
+      return p
     },
   }
 }
 
 const cache = new Map<string, Promise<Row[]>>()
-const files = new Map<string, ReturnType<typeof fetchFile>>()
+const files = new Map<string, Promise<AsyncBuffer>>()
 
-// A file, fetched once for the page: a small one (under 512KB, most of
-// them) whole, a larger one by the ranges read. Reads of different columns
-// share it, so a page whose tools want different columns of the same file
-// downloads it once
-async function fetchFile(url: string) {
-  return cached(await asyncBufferFromUrl({ url }))
-}
+// A file, fetched once for the page. Reads of different columns share it,
+// so a page whose tools want different columns of the same file downloads
+// it once
 function sharedFile(url: string) {
   let f = files.get(url)
   if (!f) {
@@ -74,6 +96,22 @@ function sharedFile(url: string) {
     files.set(url, f)
   }
   return f
+}
+
+// Run a read of a file; if the file changed under it, start over once from
+// a fresh copy
+async function withFile<T>(
+  url: string,
+  readFile: (file: AsyncBuffer) => Promise<T>,
+): Promise<T> {
+  try {
+    return await readFile(await sharedFile(url))
+  } catch (e) {
+    if (!(e instanceof FileChanged)) throw e
+    files.delete(url)
+    opened.delete(url)
+    return readFile(await sharedFile(url))
+  }
 }
 
 // Read the given columns of one season of a dataset. Results are cached for
@@ -88,28 +126,27 @@ export function read(
   const key = `${url}|${columns.join(",")}`
   let rows = cache.get(key)
   if (!rows) {
-    rows = (async () =>
-      parquetReadObjects({
-        file: await sharedFile(url),
-        columns,
-        compressors,
-      }))()
+    rows = withFile(url, file =>
+      parquetReadObjects({ file, columns, compressors }),
+    )
     rows.catch(() => cache.delete(key))
     cache.set(key, rows)
   }
   return rows
 }
 
-const opened = new Map<string, ReturnType<typeof open>>()
+const opened = new Map<string, ReturnType<typeof parquetMetadataAsync>>()
 
-// A file and its footer, read once. hyparquet's first read is otherwise the
-// file's last 512KB, which for a table read a game at a time is most of it
-async function open(url: string) {
-  const file = cached(await asyncBufferFromUrl({ url }))
-  const footer = await parquetMetadataAsync(file, {
-    initialFetchSize: 131_072,
-  })
-  return { file, metadata: footer }
+// A file's footer, parsed once. It's in the file's tail, which fetchFile
+// already has
+function footer(url: string, file: AsyncBuffer) {
+  let m = opened.get(url)
+  if (!m) {
+    m = parquetMetadataAsync(file)
+    m.catch(() => opened.delete(url))
+    opened.set(url, m)
+  }
+  return m
 }
 
 // Read the rows of one season of a dataset that match a filter, such as one
@@ -127,14 +164,14 @@ export function readWhere(
   const key = `${url}|${columns.join(",")}|${JSON.stringify(filter)}`
   let rows = cache.get(key)
   if (!rows) {
-    let file = opened.get(url)
-    if (!file) {
-      file = open(url)
-      file.catch(() => opened.delete(url))
-      opened.set(url, file)
-    }
-    rows = file.then(f =>
-      parquetReadObjects({ ...f, columns, filter, compressors }),
+    rows = withFile(url, async file =>
+      parquetReadObjects({
+        file,
+        metadata: await footer(url, file),
+        columns,
+        filter,
+        compressors,
+      }),
     )
     rows.catch(() => cache.delete(key))
     cache.set(key, rows)
