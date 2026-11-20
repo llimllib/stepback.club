@@ -57,3 +57,22 @@ The box-score prior is left out for now.
 - Every day is a mark (`<player>:<date>`), at its dot or on the trend, labeled "Jan 5, 2026 · +6.2 ·
   1,840 poss", so the reader sees how much the estimate rests on. Notes
   sit at `{t, v}`: a time in ms and a value.
+
+## By age (2026-11-19)
+
+**Line up by** is the first control: Date (the default) or Age, over
+careers (`x=age`). By age, x is age at the season's end, drawn as on the
+player page (`drawByAge` in `src/player/chart.ts`, a band an age, a day
+across it by where it falls in its season), and each player's line is his
+whole yarapm career. A span and an age axis don't mix (five seasons puts
+a 25-year-old and a 38-year-old on different ends), so by age has no
+Seasons slider: it's dropped from the controls, which is how the switch
+says the span no longer applies. `from` and `to` stay in the URL, so
+switching back restores the span.
+
+By age, the leaders are the top five on the latest day, the search lists
+everyone with a regular season yarapm rates, and a career is read a row
+group or two a season, as the player page reads one. Ages come from
+`player_season_stats` through the player page's `ages`. Day marks keep
+their `<player>:<date>` keys, so a label survives the switch; a note
+placed in one mode doesn't show in the other.

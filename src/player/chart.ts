@@ -5,10 +5,15 @@
 // docs/plans/2026-11-18-player-page-design.md
 import { format, line, max, precisionFixed, scaleLinear, select } from "d3"
 import { agate, buildFrame } from "../kit/frame"
-import { gutterWidth, lineLabels, lineStyle } from "../kit/lines"
+import {
+  gutterWidth,
+  lineLabels,
+  lineStyle,
+  pinEnd,
+  smooth,
+} from "../kit/lines"
 import { color, SITE, type } from "../kit/theme"
-import type { Body, Description } from "../kit/tool"
-import { pinEnd, smooth } from "../tools/rapm"
+import type { Body, Description, Mark } from "../kit/tool"
 import type { RatingDay } from "./load"
 
 export interface Line {
@@ -16,7 +21,16 @@ export interface Line {
   name: string
   // his age in a season is season − offset
   offset: number
-  days: RatingDay[]
+  days: Pick<RatingDay, "season" | "date" | "v" | "poss">[]
+}
+
+export interface ByAge {
+  // the rating, as the y axis names it: "RAPM", "Offensive RAPM"
+  name: string
+  // the first line is the chart's subject, drawn heavier and on top
+  lead: boolean
+  // the days are marks, to label and point at, rather than hover titles
+  marks: boolean
 }
 
 // each season's span, for placing a day within its age's band: opening
@@ -29,6 +43,7 @@ const GAP_MS = 21 * 86_400_000
 // the room between two ages' bands
 const PAD = 6
 
+const iso = (d: Date) => d.toISOString().slice(0, 10)
 const fmtDate = (d: Date) =>
   d.toLocaleDateString("en-US", {
     month: "short",
@@ -48,7 +63,7 @@ function signedFmt(digits = 1) {
 const fmt = signedFmt()
 
 interface Pt {
-  day: RatingDay
+  day: Line["days"][number]
   age: number
   // the day's place within its season, 0 to 1
   frac: number
@@ -132,15 +147,22 @@ export function chartFrame(
     "auto",
     describe(lines, team),
     url,
-    (node, size) => draw(node, size, lines, spans),
+    (node, size) =>
+      drawByAge(node, size, lines, spans, {
+        name: "RAPM",
+        lead: true,
+        marks: false,
+      }),
   ).svg
 }
 
-function draw(
+// the chart, also /rapm's by age
+export function drawByAge(
   node: SVGGElement,
   size: { width: number; height?: number },
   lines: Line[],
   spans: Spans,
+  opts: ByAge,
 ): Body {
   const ss = series(lines, spans)
   const g = select(node)
@@ -252,7 +274,7 @@ function draw(
     .attr("x", -left)
     .attr("y", -10)
     .call(agate)
-    .text("↑ RAPM, points per 100 possessions")
+    .text(`↑ ${opts.name}, points per 100 possessions`)
 
   if (dots)
     for (const pt of ss[0].points)
@@ -264,7 +286,7 @@ function draw(
         .attr("fill", ss[0].color)
         .attr("fill-opacity", 0.45)
 
-  // the trends, the player himself on top. A run of one day is a dot
+  // the trends, the first on top. A run of one day is a dot
   const path = line<Pt>()
     .x(pt => x(pt.age, pt.frac))
     .y(pt => y(pt.trend))
@@ -276,7 +298,7 @@ function draw(
           .attr("d", path(run))
           .attr("fill", "none")
           .attr("stroke", s.color)
-          .attr("stroke-width", s === ss[0] ? 3 : 2)
+          .attr("stroke-width", opts.lead ? (s === ss[0] ? 3 : 2) : 2.25)
           .attr("stroke-linejoin", "round")
           .attr("stroke-dasharray", s.dashed ? "7 4" : null)
       else
@@ -305,21 +327,34 @@ function draw(
     plotH,
   )
 
-  // every day is a mark, for hovering: its estimate and what it rests on
+  // every day is a mark, for hovering or labeling: its estimate and what it
+  // rests on. Keyed as on RAPM over time, so a label survives the switch
   const poss = format(",")
-  for (const s of ss)
-    for (const pt of s.points)
-      if (dots || s === ss[0])
-        plot
-          .append("circle")
-          .attr("cx", x(pt.age, pt.frac))
-          .attr("cy", y(dots ? pt.day.v : pt.trend))
-          .attr("r", 3)
-          .attr("fill", "transparent")
-          .append("title")
-          .text(
-            `${s.name}, ${fmtDate(pt.day.date)} · age ${pt.age} · ${fmt(pt.day.v)} · ${poss(pt.day.poss)} poss`,
-          )
+  const marks: Mark[] = []
+  if (opts.marks)
+    for (const s of ss)
+      for (const pt of s.points)
+        marks.push({
+          key: `${s.id}:${iso(pt.day.date)}`,
+          x: x(pt.age, pt.frac) + left,
+          y: y(dots ? pt.day.v : pt.trend) + top,
+          r: 3,
+          label: `${fmtDate(pt.day.date)} · age ${pt.age} · ${fmt(pt.day.v)} · ${poss(pt.day.poss)} poss`,
+        })
+  else
+    for (const s of ss)
+      for (const pt of s.points)
+        if (dots || s === ss[0])
+          plot
+            .append("circle")
+            .attr("cx", x(pt.age, pt.frac))
+            .attr("cy", y(dots ? pt.day.v : pt.trend))
+            .attr("r", 3)
+            .attr("fill", "transparent")
+            .append("title")
+            .text(
+              `${s.name}, ${fmtDate(pt.day.date)} · age ${pt.age} · ${fmt(pt.day.v)} · ${poss(pt.day.poss)} poss`,
+            )
 
   if (!ss.some(s => s.points.length))
     plot
@@ -332,8 +367,21 @@ function draw(
 
   return {
     height,
-    marks: [],
-    invert: () => undefined,
-    project: () => undefined,
+    marks,
+    // a note's position: an age and how far into its season, and a rating
+    invert(px, py) {
+      const [u, v] = [px - left, py - top]
+      if (!opts.marks || u < 0 || u > plotW || v < 0 || v > plotH)
+        return undefined
+      const band = Math.min(hi - lo, Math.floor(u / (bandW + PAD)))
+      const frac = Math.min(1, (u - band * (bandW + PAD)) / bandW)
+      return { a: +(lo + band + frac).toFixed(4), v: +y.invert(v).toFixed(3) }
+    },
+    project(pos) {
+      const { a, v } = pos as { a?: number; v: number }
+      if (a === undefined) return undefined
+      const age = Math.floor(a)
+      return [x(age, a - age) + left, y(v) + top]
+    },
   }
 }

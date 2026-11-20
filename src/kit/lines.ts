@@ -128,3 +128,46 @@ export function lineLabels(
       .text(e.sub)
   }
 }
+
+// a day of a line, which the trend smooths within its season
+interface Seasonal {
+  season: number
+  v: number
+}
+
+// A day's value on the trend line: a Gaussian-weighted average of the
+// player's days around it in the same season, `sigma` of his days wide.
+// Each season starts from a new prior, so the trend doesn't average across
+// them. It uses later days, so unlike the days themselves it's hindsight
+export function smooth(days: Seasonal[], sigma: number) {
+  const reach = Math.ceil(sigma * 3)
+  return days.map((day, i) => {
+    let [sum, total] = [0, 0]
+    for (
+      let j = Math.max(0, i - reach);
+      j <= Math.min(days.length - 1, i + reach);
+      j++
+    ) {
+      if (days[j].season !== day.season) continue
+      const w = Math.exp(-((j - i) ** 2) / (2 * sigma * sigma))
+      sum += w * days[j].v
+      total += w
+    }
+    return sum / total
+  })
+}
+
+// Bend the trend's last days onto the last day's estimate, so a line ends
+// at the value beside its name: by none of the gap `reach` days before the
+// end, all of it on the last day, easing in between. Only within the last
+// day's season, as the trend doesn't cross seasons
+export function pinEnd(days: Seasonal[], trend: number[], reach: number) {
+  const last = days.length - 1
+  if (last < 0) return trend
+  const gap = days[last].v - trend[last]
+  return trend.map((t, j) => {
+    const k = 1 - (last - j) / reach
+    if (k <= 0 || days[j].season !== days[last].season) return t
+    return t + gap * k * k * (3 - 2 * k)
+  })
+}

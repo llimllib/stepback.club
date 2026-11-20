@@ -269,7 +269,10 @@ async function buildLeague(): Promise<League> {
 // season is season − offset, his offset the most common season − age over
 // his finished seasons (all of them, if he has none), so the ages step one
 // a season, and a season's age is his age at its end
-export function ages(byPlayer: Map<string, StatSeason[]>, current: number) {
+export function ages(
+  byPlayer: Map<string, Pick<StatSeason, "season" | "nbaAge">[]>,
+  current: number,
+) {
   const out = new Map<string, number>()
   for (const [id, list] of byPlayer) {
     const done = list.filter(s => s.season < current)

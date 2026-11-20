@@ -78,8 +78,8 @@ where a typical season would end).
 Built as its own chart, `src/player/chart.ts`, sharing `rapm.ts`'s trend
 (`smooth`, `pinEnd`) and the kit's line labels, rather than as an `x=age`
 option on the tool: the tool reads whole seasons of every player, and the
-page reads only the players on it. `/rapm` could still offer age as a
-question later.
+page reads only the players on it. `/rapm` now offers age as a question
+(`x=age`), drawn by this chart; see the RAPM design.
 
 **Age** is at the season's end. NBA.com gives a finished season's age at
 its end but the current season's as of today, so a player can be 28 in

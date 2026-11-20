@@ -11,16 +11,26 @@ import {
   select,
   utcMonth,
 } from "d3"
-import { metadata, read } from "../kit/data"
+import { metadata, read, readWhere } from "../kit/data"
 import { agate } from "../kit/frame"
-import { gutterWidth, lineLabels, lineStyle } from "../kit/lines"
+import {
+  gutterWidth,
+  lineLabels,
+  lineStyle,
+  pinEnd,
+  smooth,
+} from "../kit/lines"
 import { color, type } from "../kit/theme"
 import type { Body, Mark, Tool } from "../kit/tool"
+import { drawByAge, type Line, type Spans } from "../player/chart"
+import { ages, retry, seasonSpans } from "../player/load"
 
 // 0 is the latest season the data has for `to`, and SEASONS seasons
 // ending there for `from`; load resolves them. Empty players means the five
-// highest rated on the span's last day
+// highest rated on the span's last day. `x` lines the players up by date,
+// over the span, or by age, over their careers, which has no span
 const defaults = {
+  x: "date",
   from: 0,
   to: 0,
   rating: "rating",
@@ -76,6 +86,10 @@ interface D {
   league: LeagueDay[]
   // the span's last day
   last: Date
+  // by age: the shown players' careers, and each season's span for placing
+  // a day within its age. The span is then the latest season, for the
+  // leaders, and names has everyone yarapm rates
+  age?: { lines: Map<string, Line>; spans: Spans }
 }
 
 interface LeagueDay {
@@ -166,51 +180,10 @@ function shown(d: D, p: P) {
   return ids.length ? ids : leaders(d)
 }
 
-// A day's value on the trend line: a Gaussian-weighted average of the
-// player's days around it in the same season, `sigma` of his days wide.
-// Each season starts from a new prior, so the trend doesn't average across
-// them. It uses later days, so unlike the days themselves it's hindsight
-export function smooth(days: Pick<Day, "season" | "v">[], sigma: number) {
-  const reach = Math.ceil(sigma * 3)
-  return days.map((day, i) => {
-    let [sum, total] = [0, 0]
-    for (
-      let j = Math.max(0, i - reach);
-      j <= Math.min(days.length - 1, i + reach);
-      j++
-    ) {
-      if (days[j].season !== day.season) continue
-      const w = Math.exp(-((j - i) ** 2) / (2 * sigma * sigma))
-      sum += w * days[j].v
-      total += w
-    }
-    return sum / total
-  })
-}
-
 // how wide the trend's smoothing is, in a player's days: a week or so in a
 // season, about six weeks over a career
 function smoothing(d: D) {
   return Math.min(20, Math.max(2, d.league.length / 50))
-}
-
-// Bend the trend's last days onto the last day's estimate, so a line ends
-// at the value beside its name: by none of the gap `reach` days before the
-// end, all of it on the last day, easing in between. Only within the last
-// day's season, as the trend doesn't cross seasons
-export function pinEnd(
-  days: Pick<Day, "season" | "v">[],
-  trend: number[],
-  reach: number,
-) {
-  const last = days.length - 1
-  if (last < 0) return trend
-  const gap = days[last].v - trend[last]
-  return trend.map((t, j) => {
-    const k = 1 - (last - j) / reach
-    if (k <= 0 || days[j].season !== days[last].season) return t
-    return t + gap * k * k * (3 - 2 * k)
-  })
 }
 
 interface Point {
@@ -254,6 +227,75 @@ function who(d: D, p: P) {
   return `The top ${["two", "three", "four", "five"][n - 2]} ${on}`
 }
 
+// By age: everyone's name and age from every season yarapm rates, and the
+// shown players' ratings over their careers. A season's file is sorted by
+// player, so a career is a row group or two of each season he played
+async function careers(d: D, p: P, all: number[]) {
+  const per = await Promise.all(
+    all.map(s =>
+      Promise.all([
+        read("stats", "player_seasons", s, ["player_id", "name"]),
+        read("stats", "player_season_stats", s, [
+          "player_id",
+          "season_type",
+          "age",
+        ]),
+      ]),
+    ),
+  )
+  const played = new Map<string, { season: number; nbaAge: number }[]>()
+  per.forEach(([players, stats], i) => {
+    // oldest first, so a name is a player's latest
+    for (const pl of players) if (pl.name) d.names.set(pl.player_id, pl.name)
+    for (const r of stats) {
+      if (r.season_type !== "regular_season") continue
+      let list = played.get(r.player_id)
+      if (!list) played.set(r.player_id, (list = []))
+      list.push({ season: all[i], nbaAge: r.age == null ? NaN : Number(r.age) })
+    }
+  })
+  const offsets = ages(played, all.at(-1)!)
+  const ids = shown(d, p).filter(id => offsets.has(id))
+  const [days, spans] = await Promise.all([
+    Promise.all(
+      ids.map(id =>
+        Promise.all(
+          (played.get(id) ?? []).map(({ season }) =>
+            retry(() =>
+              readWhere(
+                "yarapm",
+                "ratings_daily",
+                season,
+                ["as_of_date", "player_id", "possessions", d.rating],
+                { player_id: { $eq: id } },
+              ),
+            ).then(rows =>
+              rows.map(r => ({
+                season,
+                date: r.as_of_date as Date,
+                v: Number(r[d.rating]),
+                poss: Number(r.possessions ?? 0),
+              })),
+            ),
+          ),
+        ).then(x => x.flat().sort((a, b) => +a.date - +b.date)),
+      ),
+    ),
+    seasonSpans(all, all.at(-1)!),
+  ])
+  const lines = new Map<string, Line>()
+  ids.forEach((id, i) => {
+    if (days[i].length)
+      lines.set(id, {
+        id,
+        name: d.names.get(id) ?? id,
+        offset: offsets.get(id)!,
+        days: days[i],
+      })
+  })
+  return { lines, spans }
+}
+
 export const rapm: Tool<P, D> = {
   id: "rapm",
   name: "RAPM over time",
@@ -264,8 +306,9 @@ export const rapm: Tool<P, D> = {
     const { first_season, last_season } = meta.ratings_daily
     const clamp = (s: number) =>
       Math.min(last_season, Math.max(first_season, s))
-    const to = clamp(p.to || last_season)
-    const from = clamp(p.from || to - SEASONS + 1)
+    const byAge = p.x === "age"
+    const to = byAge ? last_season : clamp(p.to || last_season)
+    const from = byAge ? last_season : clamp(p.from || to - SEASONS + 1)
     const [lo, hi] = from <= to ? [from, to] : [to, from]
     const rating = p.rating in ratings ? p.rating : defaults.rating
 
@@ -315,7 +358,7 @@ export const rapm: Tool<P, D> = {
 
     const all = []
     for (let s = first_season; s <= last_season; s++) all.push(s)
-    return {
+    const d: D = {
       from: lo,
       to: hi,
       seasons: all,
@@ -325,14 +368,20 @@ export const rapm: Tool<P, D> = {
       league,
       last: league.at(-1)?.date ?? new Date(),
     }
+    return byAge ? { ...d, age: await careers(d, p, all) } : d
   },
 
   normalize(d, p) {
-    const p2 = { ...p, from: d.from, to: d.to, rating: d.rating }
-    // players with no days in the span drop out. None left means the
-    // leaders, which aren't written down, so they follow the rating and span
+    const x = d.age ? "age" : "date"
+    // by age has no span, so it keeps the one it had for the switch back
+    const p2 = d.age
+      ? { ...p, x, rating: d.rating }
+      : { ...p, x, from: d.from, to: d.to, rating: d.rating }
+    // players with no days in the span, or in a career, drop out. None left
+    // means the leaders, which aren't written down, so they follow the
+    // rating and span
     const ids = picked(p)
-      .filter(id => d.days.has(id))
+      .filter(id => (d.age ? d.age.lines.has(id) : d.days.has(id)))
       .slice(0, MAX_PLAYERS)
     return { ...p2, players: ids.join(",") }
   },
@@ -340,12 +389,26 @@ export const rapm: Tool<P, D> = {
   controls(d) {
     return [
       {
-        key: "from",
-        keyTo: "to",
-        label: "Seasons",
-        kind: "span",
-        options: d.seasons.map(s => ({ value: s, label: fmtSeason(s) })),
+        key: "x",
+        label: "Line up by",
+        kind: "select",
+        options: [
+          { value: "date", label: "Date" },
+          { value: "age", label: "Age, over careers" },
+        ],
       },
+      // by age, each player's whole career: no span
+      ...(d.age
+        ? []
+        : [
+            {
+              key: "from",
+              keyTo: "to",
+              label: "Seasons",
+              kind: "span" as const,
+              options: d.seasons.map(s => ({ value: s, label: fmtSeason(s) })),
+            },
+          ]),
       {
         key: "rating",
         label: "Rating",
@@ -364,7 +427,7 @@ export const rapm: Tool<P, D> = {
           label: `Top ${LEADERS} by ${ratings[d.rating].phrase}`,
           values: leaders(d),
         },
-        options: [...d.days.keys()]
+        options: [...(d.age ? d.names : d.days).keys()]
           .map(id => ({ value: id, label: d.names.get(id) ?? id }))
           .sort((a, b) => a.label.localeCompare(b.label)),
       },
@@ -372,13 +435,16 @@ export const rapm: Tool<P, D> = {
   },
 
   describe(d, p) {
-    const ss = series(d, p)
-    const span =
-      d.from === d.to
+    // by age, the players with a career to draw
+    const ss = series(d, p).filter(s => !d.age || d.age.lines.has(s.id))
+    const span = d.age
+      ? "by age at the season's end, over each one's career"
+      : d.from === d.to
         ? `in the ${fmtSeason(d.to)} season`
         : `from ${fmtSeason(d.from)} to ${fmtSeason(d.to)}`
     // one player gets his days as dots under the trend; more get the trend
     const one = ss.length === 1
+    const color0 = lineStyle(0).color
     const what = one
       ? "The model's estimate on each game day, from the games before it, and its trend"
       : "The trend of the model's estimate on each game day, from the games before it"
@@ -388,16 +454,26 @@ export const rapm: Tool<P, D> = {
       context: `${what}, ${span}. Points per 100 possessions above average`,
       legend: one
         ? [
-            { symbol: "dot", color: ss[0].color, text: "Each day" },
-            { symbol: "line", color: ss[0].color, text: "Trend" },
+            { symbol: "dot", color: color0, text: "Each day" },
+            { symbol: "line", color: color0, text: "Trend" },
           ]
         : undefined,
       counts: one ? undefined : `${ss.length} players`,
-      source: "Data: yarapm",
+      source: d.age ? "Data: yarapm, NBA.com" : "Data: yarapm",
     }
   },
 
   render(node, d, p, size): Body {
+    if (d.age) {
+      const { lines, spans } = d.age
+      return drawByAge(
+        node,
+        size,
+        shown(d, p).flatMap(id => lines.get(id) ?? []),
+        spans,
+        { name: ratings[d.rating].name, lead: false, marks: true },
+      )
+    }
     const ss = series(d, p)
     const g = select(node)
     const top = 22
@@ -615,7 +691,9 @@ export const rapm: Tool<P, D> = {
         return { d: isoDate(day), v: +y.invert(v).toFixed(3) }
       },
       project(pos) {
-        const { d: day, v } = pos as { d: string; v: number }
+        const { d: day, v } = pos as { d?: string; v: number }
+        // a note placed by age
+        if (day === undefined) return undefined
         return [x(new Date(day)) + left, y(v) + top]
       },
     }
