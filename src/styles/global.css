@@ -2543,6 +2543,22 @@ svg.frame a:hover text {
    headshot in the box, his career a season to a row in four views, the
    comparables under the chart, and a season's games. See
    docs/plans/2026-11-18-player-page-design.md */
+/* a section's head links to itself, to share; it shows on hover */
+.player-page .section-head a {
+  text-decoration: none;
+}
+
+.player-page .section-head a:hover,
+.player-page .section-head a:focus-visible {
+  text-decoration: underline;
+}
+
+.player-page .section-head a:hover::after,
+.player-page .section-head a:focus-visible::after {
+  content: " #";
+  color: var(--muted);
+}
+
 .player-band .logo img {
   width: 98px;
   height: 72px;

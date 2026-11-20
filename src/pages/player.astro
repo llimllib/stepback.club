@@ -42,8 +42,9 @@ import Base from "../layouts/Base.astro"
 
   const $ = (id: string) => document.getElementById(id)!
   const [status, body] = [$("status"), $("player")]
-  const head = (text: string | Node, id?: string) =>
-    el("h2", { className: "kicker section-head", ...(id ? { id } : {}) }, text)
+  // a section's head, a link to itself so it can be shared
+  const head = (text: string, id: string) =>
+    el("h2", { className: "kicker section-head", id }, el("a", { href: `#${id}` }, text))
   const link = (href: string, text: string) => el("a", { href }, text)
   // the season control, under its agate label
   function seasonField(select: HTMLSelectElement) {
@@ -178,7 +179,7 @@ import Base from "../layouts/Base.astro"
       chips.replaceChildren()
       actions.hidden = true
     }
-    const gamesHead = head("Games")
+    const gamesHead = head("Games", "games")
     const gamesHolder = el("div")
     const seasonSelect: HTMLSelectElement = document.createElement("select")
     seasonSelect.name = "season"
@@ -191,7 +192,8 @@ import Base from "../layouts/Base.astro"
 
     const save = () => {
       const u = url({}, latest)
-      if (u !== location.pathname + location.search) history.replaceState(null, "", u)
+      // the hash is the section linked to
+      if (u !== location.pathname + location.search) history.replaceState(null, "", u + location.hash)
     }
 
     function drawTable() {
@@ -298,7 +300,7 @@ import Base from "../layouts/Base.astro"
     let loadedGames = 0
     async function drawGames() {
       const n = ++loadedGames
-      gamesHead.replaceChildren(`Games, ${fmtSeason(s.season)}`)
+      gamesHead.firstElementChild!.replaceChildren(`Games, ${fmtSeason(s.season)}`)
       if (!mine.length) {
         gamesHolder.replaceChildren(el("p", { className: "note" }, "No games yet."))
         return
@@ -335,17 +337,17 @@ import Base from "../layouts/Base.astro"
 
     body.replaceChildren(
       playerBand(b),
-      head("Career"),
+      head("Career", "career"),
       tabsHolder,
       tableHolder,
-      head("RAPM by age"),
+      head("RAPM by age", "by-age"),
       chart,
       actions,
       chips,
       gamesHead,
       seasonField(seasonSelect),
       gamesHolder,
-      head("Key"),
+      head("Key", "key"),
       el(
         "dl",
         { className: "key" },
@@ -362,10 +364,12 @@ import Base from "../layouts/Base.astro"
       ),
     )
     drawTable()
-    drawGames()
-    await drawChart()
+    await Promise.all([drawGames(), drawChart()])
     status.replaceChildren()
     body.dataset.state = "done"
+    // the page is drawn after load, so the browser can't scroll to a
+    // section in the URL by itself
+    if (location.hash) document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView()
   }
   show()
 </script>
